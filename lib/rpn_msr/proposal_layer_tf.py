@@ -32,8 +32,10 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
     # apply NMS with threshold 0.7 to remaining proposals
     # take after_nms_topN proposals after NMS
     # return the top proposals (-> RoIs top, scores top)
+
     #layer_params = yaml.load(self.param_str_)
-    _anchors = generate_anchors(scales=np.array(anchor_scales))
+    _anchors = generate_anchors_bv()
+    # _anchors = generate_anchors(scales=np.array(anchor_scales))
     _num_anchors = _anchors.shape[0]
     rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
     rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
@@ -81,9 +83,9 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
     # reshape to (K*A, 4) shifted anchors
     A = _num_anchors
     K = shifts.shape[0]
-    anchors = _anchors.reshape((1, A, 4)) + \
-              shifts.reshape((1, K, 4)).transpose((1, 0, 2))
-    anchors = anchors.reshape((K * A, 4))
+    anchors = _anchors.reshape((1, A, 6)) + \
+              shifts.reshape((1, K, 6)).transpose((1, 0, 2))
+    anchors = anchors.reshape((K * A, 6))
 
     # Transpose and reshape predicted bbox transformations to get them
     # into the same order as the anchors:
@@ -92,7 +94,7 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
     # transpose to (1, H, W, 4 * A)
     # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
     # in slowest to fastest order
-    bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 4))
+    bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 6))
 
     # Same story for the scores:
     #

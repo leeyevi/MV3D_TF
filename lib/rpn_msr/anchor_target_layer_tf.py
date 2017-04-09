@@ -22,7 +22,8 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, data, _feat_stride = [
     Assign anchors to ground-truth targets. Produces anchor classification
     labels and bounding-box regression targets.
     """
-    _anchors = generate_anchors(scales=np.array(anchor_scales))
+    _anchors = generate_anchors_bv()
+    # _anchors = generate_anchors(scales=np.array(anchor_scales))
     _num_anchors = _anchors.shape[0]
 
     if DEBUG:

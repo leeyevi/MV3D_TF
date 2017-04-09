@@ -34,6 +34,22 @@ import numpy as np
 #       [ -79., -167.,   96.,  184.],
 #       [-167., -343.,  184.,  360.]])
 
+def generate_anchors_bv(base_size=[[3.9, 1.6], [1.0, 0.6]], res=0.1):
+    """
+    Generate anchor (reference) windows for lidar bird view
+    """
+
+    base_anchors = np.vstack([[0, 0, int(base[0]/res), int(base[1]/res)] for base in base_size])
+    
+    base_anchors[:,0] -= base_anchors[:,2]//2
+    base_anchors[:,1] -= base_anchors[:,3]//2
+    base_anchors[:,2] -= base_anchors[:,2]//2
+    base_anchors[:,3] -= base_anchors[:,3]//2
+
+    anchors = np.vstack((base_anchors, base_anchors[:,[1,0,3,2]]))
+
+    return anchors
+
 def generate_anchors(base_size=16, ratios=[0.5, 1, 2],
                      scales=2**np.arange(3, 6)):
     """
