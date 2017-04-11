@@ -43,7 +43,7 @@ class kitti(datasets.imdb):
         # load the mapping for subcalss to class
         filename = os.path.join(self._kitti_path, cfg.SUBCLS_NAME, prefix, 'mapping.txt')
         assert os.path.exists(filename), 'Path does not exist: {}'.format(filename)
-        
+
         mapping = np.zeros(self._num_subclasses, dtype=np.int)
         with open(filename) as f:
             for line in f:
@@ -194,7 +194,7 @@ class kitti(datasets.imdb):
 
                 # compute overlap
                 overlaps_grid = bbox_overlaps(boxes_grid.astype(np.float), boxes_all.astype(np.float))
-        
+
                 # check how many gt boxes are covered by grids
                 if num_objs != 0:
                     index = np.tile(range(num_objs), len(cfg.TRAIN.SCALES))
@@ -249,7 +249,7 @@ class kitti(datasets.imdb):
 
                 # compute overlap
                 overlaps_grid = bbox_overlaps(all_anchors.astype(np.float), gt_boxes.astype(np.float))
-        
+
                 # check how many gt boxes are covered by anchors
                 if num_objs != 0:
                     max_overlaps = overlaps_grid.max(axis = 0)
@@ -285,7 +285,7 @@ class kitti(datasets.imdb):
         assert os.path.exists(filename), \
                 'Path does not exist: {}'.format(filename)
 
-        # the annotation file contains flipped objects    
+        # the annotation file contains flipped objects
         lines = []
         lines_flipped = []
         with open(filename) as f:
@@ -298,13 +298,13 @@ class kitti(datasets.imdb):
                         lines.append(line)
                     else:
                         lines_flipped.append(line)
-        
+
         num_objs = len(lines)
 
         # store information of flipped objects
         assert (num_objs == len(lines_flipped)), 'The number of flipped objects is not the same!'
         gt_subclasses_flipped = np.zeros((num_objs), dtype=np.int32)
-        
+
         for ix, line in enumerate(lines_flipped):
             words = line.split()
             subcls = int(words[1])
@@ -349,7 +349,7 @@ class kitti(datasets.imdb):
 
                 # compute overlap
                 overlaps_grid = bbox_overlaps(boxes_grid.astype(np.float), boxes_all.astype(np.float))
-        
+
                 # check how many gt boxes are covered by grids
                 if num_objs != 0:
                     index = np.tile(range(num_objs), len(cfg.TRAIN.SCALES))
@@ -407,7 +407,7 @@ class kitti(datasets.imdb):
 
                 # compute overlap
                 overlaps_grid = bbox_overlaps(all_anchors.astype(np.float), gt_boxes.astype(np.float))
-        
+
                 # check how many gt boxes are covered by anchors
                 if num_objs != 0:
                     max_overlaps = overlaps_grid.max(axis = 0)
@@ -424,8 +424,8 @@ class kitti(datasets.imdb):
                 'gt_subclasses': gt_subclasses,
                 'gt_subclasses_flipped': gt_subclasses_flipped,
                 'gt_overlaps': overlaps,
-                'gt_subindexes': subindexes, 
-                'gt_subindexes_flipped': subindexes_flipped, 
+                'gt_subindexes': subindexes,
+                'gt_subindexes_flipped': subindexes_flipped,
                 'flipped' : False}
 
     def region_proposal_roidb(self):

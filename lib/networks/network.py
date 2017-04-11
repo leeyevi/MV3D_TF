@@ -7,7 +7,6 @@ from rpn_msr.anchor_target_layer_tf import anchor_target_layer as anchor_target_
 from rpn_msr.proposal_target_layer_tf import proposal_target_layer as proposal_target_layer_py
 
 
-
 DEFAULT_PADDING = 'SAME'
 
 def layer(op):
@@ -118,6 +117,49 @@ class Network(object):
             return tf.nn.bias_add(conv, biases, name=scope.name)
 
     @layer
+    def deconv(self, input, shape, c_o, ksize=4, stride = 2, name = 'upconv', biased=False, relu=True, padding=DEFAULT_PADDING,
+             trainable=True):
+        """ up-conv"""
+        self.validate_padding(padding)
+
+        c_in = input.get_shape()[3].value
+        in_shape = tf.shape(input)
+        if shape is None:
+            # h = ((in_shape[1] - 1) * stride) + 1
+            # w = ((in_shape[2] - 1) * stride) + 1
+            h = ((in_shape[1] ) * stride)
+            w = ((in_shape[2] ) * stride)
+            new_shape = [in_shape[0], h, w, c_o]
+        else:
+            new_shape = [in_shape[0], shape[1], shape[2], c_o]
+        output_shape = tf.stack(new_shape)
+
+        filter_shape = [ksize, ksize, c_o, c_in]
+
+        with tf.variable_scope(name) as scope:
+            # init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
+            init_weights = tf.contrib.layers.variance_scaling_initializer(factor=0.01, mode='FAN_AVG', uniform=False)
+            filters = self.make_var('weights', filter_shape, init_weights, trainable, \
+                                   regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
+            deconv = tf.nn.conv2d_transpose(input, filters, output_shape,
+                                            strides=[1, stride, stride, 1], padding=DEFAULT_PADDING, name=scope.name)
+            # coz de-conv losses shape info, use reshape to re-gain shape
+            deconv = tf.reshape(deconv, new_shape)
+
+            if biased:
+                init_biases = tf.constant_initializer(0.0)
+                biases = self.make_var('biases', [c_o], init_biases, trainable)
+                if relu:
+                    bias = tf.nn.bias_add(deconv, biases)
+                    return tf.nn.relu(bias)
+                return tf.nn.bias_add(deconv, biases)
+            else:
+                if relu:
+                    return tf.nn.relu(deconv)
+                return deconv
+
+
+    @layer
     def relu(self, input, name):
         return tf.nn.relu(input, name=name)
 
@@ -167,6 +209,7 @@ class Network(object):
         if isinstance(input[0], tuple):
             input[0] = input[0][0]
 
+        gt_boxes_bv = lidar_to_top(input[1])
         with tf.variable_scope(name) as scope:
 
             rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights = tf.py_func(anchor_target_layer_py,[input[0],input[1],input[2],input[3], _feat_stride, anchor_scales],[tf.float32,tf.float32,tf.float32,tf.float32])
@@ -179,7 +222,7 @@ class Network(object):
 
             return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
 
-
+    # TODO
     @layer
     def proposal_target_layer(self, input, classes, name):
         if isinstance(input[0], tuple):
@@ -188,14 +231,28 @@ class Network(object):
 
             rois,labels,bbox_targets,bbox_inside_weights,bbox_outside_weights = tf.py_func(proposal_target_layer_py,[input[0],input[1],classes],[tf.float32,tf.float32,tf.float32,tf.float32,tf.float32])
 
-            rois = tf.reshape(rois,[-1,5] , name = 'rois') 
+            rois = tf.reshape(rois,[-1,5] , name = 'rois')
             labels = tf.convert_to_tensor(tf.cast(labels,tf.int32), name = 'labels')
             bbox_targets = tf.convert_to_tensor(bbox_targets, name = 'bbox_targets')
             bbox_inside_weights = tf.convert_to_tensor(bbox_inside_weights, name = 'bbox_inside_weights')
             bbox_outside_weights = tf.convert_to_tensor(bbox_outside_weights, name = 'bbox_outside_weights')
 
-           
+
             return rois, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights
+
+    #  @layer
+    #  def proposal_target_transform(self, input, target='bv', name):
+        #  """ transform 3d propasal to different view """
+        #  assert(target in ('bv', 'image', 'fv'))
+        #  if target == 'bv':
+            #  # TODO
+            #  pass
+        #  elif target == 'image':
+            #  # TODO
+            #  pass
+        #  elif target == 'fv':
+            #  # TODO
+            #  pass
 
 
     @layer
@@ -228,6 +285,11 @@ class Network(object):
     @layer
     def concat(self, inputs, axis, name):
         return tf.concat(concat_dim=axis, values=inputs, name=name)
+
+    # TODO
+    @layer
+    def fusion(self, input):
+        return None
 
     @layer
     def fc(self, input, num_out, name, relu=True, trainable=True):
