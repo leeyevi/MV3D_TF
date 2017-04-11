@@ -14,7 +14,7 @@ from fast_rcnn.nms_wrapper import nms
 import pdb
 
 
-DEBUG = False
+DEBUG = True
 """
 Outputs object detection proposals by applying estimated bounding-box
 transformations to a set of regular boxes (called "anchors").

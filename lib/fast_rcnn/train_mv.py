@@ -144,8 +144,10 @@ class SolverWrapper(object):
         global_step = tf.Variable(0, trainable=False)
         lr = tf.train.exponential_decay(cfg.TRAIN.LEARNING_RATE, global_step,
                                         cfg.TRAIN.STEPSIZE, 0.1, staircase=True)
-        momentum = cfg.TRAIN.MOMENTUM
-        train_op = tf.train.MomentumOptimizer(lr, momentum).minimize(loss, global_step=global_step)
+        #  momentum = cfg.TRAIN.MOMENTUM
+        #  train_op = tf.train.MomentumOptimizer(lr, momentum).minimize(loss, global_step=global_step)
+        lr = 0.001
+        train_op = tf.train.GradientDescentOptimizer(lr).minimize(loss)
 
         # iintialize variables
         sess.run(tf.global_variables_initializer())
@@ -161,8 +163,10 @@ class SolverWrapper(object):
             blobs = data_layer.forward()
 
             # Make one SGD update
-            feed_dict={self.net.data: blobs['data'], self.net.im_info: blobs['im_info'], self.net.keep_prob: 0.5, \
-                           self.net.gt_boxes: blobs['gt_boxes']}
+            feed_dict={self.net.lidar_bv: blobs['lidar_bv'], self.net.im_info: blobs['im_info'], self.net.keep_prob: 0.5, \
+                           self.net.gt_boxes: blobs['gt_boxes'],
+                       self.net.gt_boxes_bv: blobs['gt_boxes_bv'],
+                       self.net.gt_boxes3d: blobs['gt_boxes3d']}
 
             run_options = None
             run_metadata = None
@@ -254,7 +258,7 @@ def filter_roidb(roidb):
     return filtered_roidb
 
 
-def train_net(network, imdb, roidb, output_dir, pretrained_model=None, max_iters=40000):
+def train_net(network, imdb, roidb, output_dir, pretrained_model=None, max_iters=10000):
     """Train a Fast R-CNN network."""
     roidb = filter_roidb(roidb)
     saver = tf.train.Saver(max_to_keep=100)

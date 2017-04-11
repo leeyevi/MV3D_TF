@@ -4,6 +4,7 @@
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Ross Girshick
 # --------------------------------------------------------
+# from __future__ import absolute_division
 
 import numpy as np
 
@@ -25,6 +26,35 @@ def bbox_transform(ex_rois, gt_rois):
 
     targets = np.vstack(
         (targets_dx, targets_dy, targets_dw, targets_dh)).transpose()
+    return targets
+
+# TODO
+def bbox_transform_3d(ex_rois_3d, gt_rois_3d):
+
+    # x, y, z, l, w, h
+    ex_ctr_x = ex_rois_3d[:, 0]
+    ex_ctr_y = ex_rois_3d[:, 1]
+    ex_ctr_z = ex_rois_3d[:, 2]
+    ex_lengths = ex_rois_3d[:, 3]
+    ex_widths = ex_rois_3d[:, 4]
+    ex_heights = ex_rois_3d[:, 5]
+
+    gt_ctr_x = gt_rois_3d[:, 0]
+    gt_ctr_y = gt_rois_3d[:, 1]
+    gt_ctr_z = gt_rois_3d[:, 2]
+    gt_lengths = gt_rois_3d[:, 3]
+    gt_widths = gt_rois_3d[:, 4]
+    gt_heights = gt_rois_3d[:, 5]
+
+    targets_dx = (gt_ctr_x - ex_ctr_x) / ex_widths
+    targets_dy = (gt_ctr_y - ex_ctr_y) / ex_lengths
+    targets_dz = (gt_ctr_z - ex_ctr_z) / ex_heights
+    targets_dl = np.log(gt_lengths / ex_lengths)
+    targets_dw = np.log(gt_widths / ex_widths)
+    targets_dh = np.log(gt_heights / ex_heights)
+
+    targets = np.vstack(
+        (targets_dx, targets_dy, targets_dz, targets_dl, targets_dw, targets_dh)).transpose()
     return targets
 
 def bbox_transform_inv(boxes, deltas):
