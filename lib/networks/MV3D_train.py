@@ -4,24 +4,25 @@ from networks.network import Network
 #  n_classes = 21
 #  _feat_stride = [16,]
 #  anchor_scales = [8, 16, 32]
-n_classes = 3
-_feat_stride = [8,]
-anchor_scales = [8, 16] # TODO
+n_classes = 4 # car, pedes, cyclist, dontcare
+_feat_stride = [4]
+anchor_scales = [1, 1] 
 
 class MV3D_train(Network):
     def __init__(self, trainable=True):
         self.inputs = []
         self.lidar_bv = tf.placeholder(tf.float32, shape=[None, None, None, 24])
-        self.rgb = tf.placeholder(tf.float32, shape=[None, None, None, 3])
+        self.image = tf.placeholder(tf.float32, shape=[None, None, None, 3])
         self.im_info = tf.placeholder(tf.float32, shape=[None, 3])
         self.gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
         self.gt_boxes_bv = tf.placeholder(tf.float32, shape=[None, 5])
-        self.gt_boxes3d = tf.placeholder(tf.float32, shape=[None, 7])
+        self.gt_boxes_3d = tf.placeholder(tf.float32, shape=[None, 7])
         self.ryaw = tf.placeholder(tf.float32, shape=[None, 2])
         self.keep_prob = tf.placeholder(tf.float32)
-        self.layers = dict({'lidar_bv':self.lidar_fv, 'rgb':self.rgb,
+        self.layers = dict({'lidar_bv':self.lidar_bv, 'rgb':self.image,
                             'im_info':self.im_info,
-                            'gt_boxes':self.gt_boxes, 'gt_boxes_bv':self.gt_boxes_bv,  'gt_boxes3d': self.gt_boxes3d})
+                            'gt_boxes':self.gt_boxes, 
+                            'gt_boxes_bv':self.gt_boxes_bv,  'gt_boxes_3d': self.gt_boxes_3d})
         self.trainable = trainable
         self.setup()
 
@@ -76,12 +77,12 @@ class MV3D_train(Network):
 
         #========= RPN ============
         (self.feed('conv5_3')
-             .deconv(c_o=256, stride=2, ksize=3,  name='deconv_2x_1')
+             .deconv(shape=None, c_o=256, stride=2, ksize=3,  name='deconv_2x_1')
              .conv(3,3,512,1,1,name='rpn_conv/3x3')
              .conv(1,1,len(anchor_scales)*2*2 ,1 , 1, padding='VALID', relu = False, name='rpn_cls_score'))
 
-        (self.feed('rpn_cls_score','gt_boxes_bv','im_info','data')
-             .anchor_target_layer(_feat_stride=4, anchor_scales, name = 'rpn-data' )) # 4 downsample
+        (self.feed('rpn_cls_score','gt_boxes_bv','im_info','lidar_bv')
+             .anchor_target_layer(_feat_stride, anchor_scales, name = 'rpn-data' )) # 4 downsample
 
         # Loss of rpn_cls & rpn_boxes
         # ancho_num * xyzhlw
@@ -99,14 +100,16 @@ class MV3D_train(Network):
              .reshape_layer(len(anchor_scales)*2*2,name = 'rpn_cls_prob_reshape'))
 
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info')
-             .proposal_layer(_feat_stride=4, anchor_scales, 'TRAIN',name = 'rpn_rois'))
+             .proposal_layer(_feat_stride, anchor_scales, 'TRAIN',name = 'rpn_rois'))
 
-        (self.feed('rpn_rois', 'gt_boxes_bv','gt_boxes3d')
+        (self.feed('rpn_rois', 'gt_boxes_bv','gt_boxes_3d')
              .proposal_target_layer_3d(n_classes, name='roi_data_3d'))
+
+        (self.feed('roi_data_3d')
              .proposal_transform(target='bv', name='roi_data_1'))
 
-        #  (self.feed('conv5_3')
-             #  .deconv(c_o=128, stride=4, ksize=3, name='deconv_4x_1'))
+        (self.feed('conv5_3')
+              .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_4x_1'))
 
         #========= RoI Proposal ============
         # RGB Mono
@@ -118,8 +121,9 @@ class MV3D_train(Network):
         #       #  .roi_pool(7, 7, 1.0/16, name='pool_5_1')
 
         #========= RCNN ============
-        (self.feed('conv5_3', 'roi_data_1')
-             .roi_pool(7, 7, 1.0/16, name='pool_5')
+        # (self.feed('conv5_3', 'roi_data_1')
+        (self.feed('deconv_4x_1', 'roi_data_1')
+             .roi_pool(7, 7, 1.0/8, name='pool_5')
              .fc(4096, name='fc6')
              .dropout(0.5, name='drop6')
              .fc(4096, name='fc7')
@@ -128,7 +132,7 @@ class MV3D_train(Network):
              .softmax(name='cls_prob'))
 
         (self.feed('drop7')
-             .fc(n_classes*4, relu=False, name='bbox_pred'))
+             .fc(n_classes*6, relu=False, name='bbox_pred'))
 
         # lidar
         #  (self.feed('deconv_4x_1', 'roi_data_1')
