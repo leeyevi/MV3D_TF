@@ -10,7 +10,7 @@ import yaml
 from fast_rcnn.config import cfg
 import numpy as np
 import numpy.random as npr
-from generate_anchors import generate_anchors
+from generate_anchors import generate_anchors_bv
 from utils.cython_bbox import bbox_overlaps
 from fast_rcnn.bbox_transform import bbox_transform
 import pdb
@@ -70,6 +70,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, data, _feat_stride = [
         print 'height, width: ({}, {})'.format(height, width)
         print 'rpn: gt_boxes.shape', gt_boxes.shape
         print 'rpn: gt_boxes', gt_boxes
+        print 'feat_stride', _feat_stride
 
     # 1. Generate proposals from bbox deltas and shifted anchors
     shift_x = np.arange(0, width) * _feat_stride
@@ -157,7 +158,8 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, data, _feat_stride = [
     bbox_targets = _compute_targets(anchors, gt_boxes[argmax_overlaps, :])
 
     bbox_inside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
-    bbox_inside_weights[labels == 1, :] = np.array(cfg.TRAIN.RPN_BBOX_INSIDE_WEIGHTS)
+    # bbox_inside_weights[labels == 1, :] = np.array(cfg.TRAIN.RPN_BBOX_INSIDE_WEIGHTS)
+    bbox_inside_weights[labels == 1, :] = np.array([1.0, 1.0, 1., 1.])
 
     bbox_outside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
     if cfg.TRAIN.RPN_POSITIVE_WEIGHT < 0:

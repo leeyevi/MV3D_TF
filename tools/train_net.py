@@ -10,7 +10,7 @@
 """Train a Fast R-CNN network on a region of interest database."""
 
 import _init_paths
-from fast_rcnn.train import get_training_roidb, train_net
+from fast_rcnn.train_mv import get_training_roidb, train_net
 from fast_rcnn.config import cfg,cfg_from_file, cfg_from_list, get_output_dir
 from datasets.factory import get_imdb
 from networks.factory import get_network
@@ -26,7 +26,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
     parser.add_argument('--device', dest='device', help='device to use',
-                        default='cpu', type=str)
+                        default='gpu', type=str)
     parser.add_argument('--device_id', dest='device_id', help='device id to use',
                         default=0, type=int)
     parser.add_argument('--solver', dest='solver',
@@ -85,8 +85,8 @@ if __name__ == '__main__':
     output_dir = get_output_dir(imdb, None)
     print 'Output will be saved to `{:s}`'.format(output_dir)
 
-    device_name = '/{}:{:d}'.format(args.device,args.device_id)
-    print device_name
+    # device_ngme = '/{}:{:d}'.format(args.device,args.device_id)
+    # print device_name
 
     network = get_network(args.network_name)
     print 'Use network `{:s}` in training'.format(args.network_name)

@@ -28,7 +28,7 @@ def bbox_transform(ex_rois, gt_rois):
         (targets_dx, targets_dy, targets_dw, targets_dh)).transpose()
     return targets
 
-# TODO
+
 def bbox_transform_3d(ex_rois_3d, gt_rois_3d):
 
     # x, y, z, l, w, h

@@ -9,11 +9,11 @@ import yaml
 import numpy as np
 import numpy.random as npr
 from fast_rcnn.config import cfg
-from fast_rcnn.bbox_transform import bbox_transform
+from fast_rcnn.bbox_transform import bbox_transform_3d
 from utils.cython_bbox import bbox_overlaps
 import pdb
 
-DEBUG = True
+DEBUG = False
 
 TOP_X_MAX = 70.3
 TOP_X_MIN = 0
@@ -22,6 +22,8 @@ TOP_Y_MAX = 40
 RES = 0.1
 LIDAR_HEIGHT = 1.73
 CAR_HEIGHT = 1.56
+
+_count = 0
 
 def proposal_target_layer_3d(rpn_rois_bv, gt_boxes_bv, gt_boxes_3d, _num_classes):
     """
@@ -54,7 +56,6 @@ def proposal_target_layer_3d(rpn_rois_bv, gt_boxes_bv, gt_boxes_3d, _num_classes
 
     # Sample rois with classification labels and bounding box regression
     # targets
-    # TODO
     labels, rois, bbox_targets, bbox_inside_weights = _sample_rois_3d(
         all_rois, gt_boxes_bv, gt_boxes_3d, fg_rois_per_image,
         rois_per_image, _num_classes)
@@ -62,17 +63,17 @@ def proposal_target_layer_3d(rpn_rois_bv, gt_boxes_bv, gt_boxes_3d, _num_classes
     if DEBUG:
         print 'num fg: {}'.format((labels > 0).sum())
         print 'num bg: {}'.format((labels == 0).sum())
-        _count += 1
-        _fg_num += (labels > 0).sum()
-        _bg_num += (labels == 0).sum()
-        print 'num fg avg: {}'.format(_fg_num / _count)
-        print 'num bg avg: {}'.format(_bg_num / _count)
-        print 'ratio: {:.3f}'.format(float(_fg_num) / float(_bg_num))
+        # _count += 1
+        # _fg_num += (labels > 0).sum()
+        # _bg_num += (labels == 0).sum()
+        # print 'num fg avg: {}'.format(_fg_num / _count)
+        # print 'num bg avg: {}'.format(_bg_num / _count)
+        # print 'ratio: {:.3f}'.format(float(_fg_num) / float(_bg_num))
 
-    rois = rois.reshape(-1,7)
-    labels = labels.reshape(-1,1)
-    bbox_targets = bbox_targets.reshape(-1,_num_classes*6)
-    bbox_inside_weights = bbox_inside_weights.reshape(-1,_num_classes*6)
+    rois = rois.reshape(-1,7).astype(np.float32)
+    labels = labels.reshape(-1,1).astype(np.int32)
+    bbox_targets = bbox_targets.reshape(-1,_num_classes*6).astype(np.float32)
+    bbox_inside_weights = bbox_inside_weights.reshape(-1,_num_classes*6).astype(np.float32)
 
     bbox_outside_weights = np.array(bbox_inside_weights > 0).astype(np.float32)
 
@@ -114,12 +115,12 @@ def proposal_target_layer(rpn_rois, gt_boxes,_num_classes):
     if DEBUG:
         print 'num fg: {}'.format((labels > 0).sum())
         print 'num bg: {}'.format((labels == 0).sum())
-        _count += 1
-        _fg_num += (labels > 0).sum()
-        _bg_num += (labels == 0).sum()
-        print 'num fg avg: {}'.format(_fg_num / _count)
-        print 'num bg avg: {}'.format(_bg_num / _count)
-        print 'ratio: {:.3f}'.format(float(_fg_num) / float(_bg_num))
+        # _count += 1
+        # _fg_num += (labels > 0).sum()
+        # _bg_num += (labels == 0).sum()
+        # print 'num fg avg: {}'.format(_fg_num / _count)
+        # print 'num bg avg: {}'.format(_bg_num / _count)
+        # print 'ratio: {:.3f}'.format(float(_fg_num) / float(_bg_num))
 
     rois = rois.reshape(-1,5)
     labels = labels.reshape(-1,1)
@@ -201,10 +202,10 @@ def _compute_targets_3d(ex_rois_3d, gt_rois_3d, labels):
     assert gt_rois_3d.shape[1] == 6
 
     targets = bbox_transform_3d(ex_rois_3d, gt_rois_3d)
-    if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
-        # Optionally normalize targets by a precomputed mean and stdev
-        targets = ((targets - np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS))
-                / np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS))
+    # if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
+    #     # Optionally normalize targets by a precomputed mean and stdev
+    #     targets = ((targets - np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS))
+    #             / np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS))
     return np.hstack(
             (labels[:, np.newaxis], targets)).astype(np.float32, copy=False)
 
@@ -346,9 +347,16 @@ def _bv_roi_to_3d(rpn_rois_bv):
     ctr_height = ctr_height.reshape(-1, 1)
     car_height = car_height.reshape(-1, 1)
 
-    all_rois_3d = np.hstack((rpn_rois_ctr[:,0], rpn_rois_ctr[:,1], rpn_rois_ctr[:,2],
-                ctr_height, rpn_rois_ctr[:,3], rpn_rois_ctr[:,4], car_height))
-    return rpn_rois_3d
+    if DEBUG:
+        print rpn_rois_ctr.shape
+        print 'car height shape', car_height.shape
+        print 'ctr shape', ctr_height.shape
+
+
+    all_rois_3d = np.hstack((rpn_rois_ctr[:,:3],
+                ctr_height, rpn_rois_ctr[:,3:5], car_height))
+    assert(all_rois_3d.shape[1] == 7)
+    return all_rois_3d
 
 def _lidar_to_bv(rois_3d):
 
