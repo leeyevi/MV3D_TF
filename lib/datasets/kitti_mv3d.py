@@ -14,7 +14,7 @@ import cPickle
 from fast_rcnn.config import cfg
 import math
 from rpn_msr.generate_anchors import generate_anchors_bv
-from utils.transform import lidar_to_bv_single, camera_to_lidar
+from utils.transform import lidar_to_bv_single, camera_to_lidar, lidar_to_corners
 
 class kitti_mv3d(datasets.imdb):
     def __init__(self, image_set, kitti_path=None):
@@ -175,6 +175,7 @@ class kitti_mv3d(datasets.imdb):
         boxes_bv = np.zeros((num_objs, 4), dtype=np.uint16)
         boxes3D = np.zeros((num_objs, 6), dtype=np.float32)
         boxes3D_lidar = np.zeros((num_objs, 6), dtype=np.float32)
+        boxes3D_corners = np.zeros((num_objs, 24), dtype=np.float32)
         alphas = np.zeros((num_objs), dtype=np.float32)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
@@ -214,6 +215,7 @@ class kitti_mv3d(datasets.imdb):
             boxes3D[ix, :] = [tx, ty, tz, l, w, h]
             boxes3D_lidar[ix, :] = camera_to_lidar(boxes3D[ix, :], P)
             boxes_bv[ix, :] = lidar_to_bv_single(boxes3D_lidar[ix, :])
+            boxes3D_corners[ix, :] = lidar_to_corners(boxes3D_lidar[ix, :])
             gt_classes[ix] = cls
             # print cls
             overlaps[ix, cls] = 1.0
@@ -223,6 +225,7 @@ class kitti_mv3d(datasets.imdb):
         boxes_bv.resize(ix+1, 4)
         boxes3D.resize(ix+1, 6)
         boxes3D_lidar.resize(ix+1, 6)
+        boxes3D_corners.resize(ix+1, 24)
         gt_classes.resize(ix+1)
         # print(self.num_classes)
         overlaps.resize(ix+1, self.num_classes)
@@ -237,6 +240,7 @@ class kitti_mv3d(datasets.imdb):
         return {'boxes' : boxes,
                 'boxes_bv' : boxes_bv,
                 'boxes_3D' : boxes3D_lidar,
+                'boxes_corners' : boxes3D_corners,
                 'gt_classes': gt_classes,
                 'gt_overlaps' : overlaps,
                 'alphas' :alphas,
@@ -256,10 +260,10 @@ class kitti_mv3d(datasets.imdb):
             return 4
 
     def _write_kitti_results_file(self, all_boxes, all_boxes3D):
-        use_salt = self.config['use_salt']
-        comp_id = ''
-        if use_salt:
-            comp_id += '{}'.format(os.getpid())
+        # use_salt = self.config['use_salt']
+        # comp_id = ''
+        # if use_salt:
+        #     comp_id += '{}'.format(os.getpid())
 
         path = os.path.join(datasets.ROOT_DIR, 'kitti/results', 'kitti_' + self._subset + '_' + self._image_set + '_' + comp_id \
                                         + '-' + time.strftime('%m-%d-%H-%M-%S',time.localtime(time.time())), 'data')
