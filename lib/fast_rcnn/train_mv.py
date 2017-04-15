@@ -87,9 +87,8 @@ class SolverWrapper(object):
         """
         sigma2 = sigma * sigma
 
-        print('===================')
-        print(bbox_pred.shape)
-        print(bbox_targets.shape)
+        # print(bbox_pred.shape)
+        # print(bbox_targets.shape)
         inside_mul = tf.multiply(bbox_inside_weights, tf.subtract(bbox_pred, bbox_targets))
 
         smooth_l1_sign = tf.cast(tf.less(tf.abs(inside_mul), 1.0 / sigma2), tf.float32)
@@ -107,8 +106,8 @@ class SolverWrapper(object):
         """Network training loop."""
 
         data_layer = get_data_layer(self.roidb, self.imdb.num_classes)
-        print("self.roidb: ", len(self.roidb))
-        print("self.roidb: ", self.roidb[10])
+        # print("self.roidb: ", len(self.roidb))
+        # print("self.roidb: ", self.roidb[10])
 
         # RPN
         # classification loss
@@ -132,8 +131,8 @@ class SolverWrapper(object):
         # classification loss
         cls_score = self.net.get_output('cls_score')
         label = tf.reshape(self.net.get_output('roi_data_3d')[1],[-1])
-        print('label',label.shape)
-        print('cla_score_shape',cls_score.shape)
+        # print('label',label.shape)
+        # print('cla_score_shape',cls_score.shape)
         # print(label.dtype)
         cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=label))
 
@@ -143,28 +142,27 @@ class SolverWrapper(object):
         bbox_inside_weights = self.net.get_output('roi_data_3d')[3]
         bbox_outside_weights = self.net.get_output('roi_data_3d')[4]
 
-
         smooth_l1 = self._modified_smooth_l1(1.0, bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
-        loss_box = tf.reduce_mean(tf.reduce_sum(smooth_l1, reduction_indices=[1]))
+        loss_box = tf.multiply(tf.reduce_mean(tf.reduce_sum(smooth_l1, reduction_indices=[1])), 10)
 
         # final loss
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
         # optimizer and learning rate
-        global_step = tf.Variable(0, trainable=False)
-        lr = tf.train.exponential_decay(cfg.TRAIN.LEARNING_RATE, global_step,
-                                        cfg.TRAIN.STEPSIZE, 0.1, staircase=True)
+        # global_step = tf.Variable(0, trainable=False)
+        # lr = tf.train.exponential_decay(cfg.TRAIN.LEARNING_RATE, global_step,
+        #                                 cfg.TRAIN.STEPSIZE, 0.1, staircase=True)
         #  momentum = cfg.TRAIN.MOMENTUM
         #  train_op = tf.train.MomentumOptimizer(lr, momentum).minimize(loss, global_step=global_step)
-        lr = 0.001
+        lr = 0.0001
         train_op = tf.train.GradientDescentOptimizer(lr).minimize(loss)
 
         # iintialize variables
         sess.run(tf.global_variables_initializer())
-        # if self.pretrained_model is not None:
-        #     print ('Loading pretrained model '
-        #            'weights from {:s}').format(self.pretrained_model)
-        #     self.net.load(self.pretrained_model, sess, self.saver, True)
+        if self.pretrained_model is not None:
+            print ('Loading pretrained model '
+                   'weights from {:s}').format(self.pretrained_model)
+            self.net.load(self.pretrained_model, sess, self.saver, True)
 
         last_snapshot_iter = -1
         timer = Timer()
@@ -173,10 +171,13 @@ class SolverWrapper(object):
             blobs = data_layer.forward()
 
             # Make one SGD update
-            feed_dict={self.net.lidar_bv: blobs['lidar_bv'], self.net.im_info: blobs['im_info'], self.net.keep_prob: 0.5, \
-                           self.net.gt_boxes: blobs['gt_boxes'],
+            feed_dict={self.net.lidar_bv_data: blobs['lidar_bv_data'], 
+                       self.net.im_info: blobs['im_info'],
+                       self.net.keep_prob: 0.5, 
+                       self.net.gt_boxes: blobs['gt_boxes'],
                        self.net.gt_boxes_bv: blobs['gt_boxes_bv'],
-                       self.net.gt_boxes_3d: blobs['gt_boxes_3d']}
+                       self.net.gt_boxes_3d: blobs['gt_boxes_3d'], 
+                       self.net.gt_boxes_corners: blobs['gt_boxes_corners']}
 
             run_options = None
             run_metadata = None
@@ -186,12 +187,13 @@ class SolverWrapper(object):
 
             timer.tic()
 
-            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, _ = sess.run([rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, train_op],
-                                                                                                feed_dict=feed_dict,
-                                                                                                options=run_options,
-                                                                                                run_metadata=run_metadata)
+            bbox_pred_out,rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, _ = sess.run([bbox_pred, rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, train_op],
+                feed_dict=feed_dict,
+                options=run_options,
+                run_metadata=run_metadata)
 
             timer.toc()
+            print 'bbox_pred', loss_box_value * 1
 
             if cfg.TRAIN.DEBUG_TIMELINE:
                 trace = timeline.Timeline(step_stats=run_metadata.step_stats)

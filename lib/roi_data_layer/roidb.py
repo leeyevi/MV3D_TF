@@ -26,8 +26,8 @@ def prepare_roidb(imdb):
     roidb = imdb.roidb
 
     for i in xrange(len(imdb.image_index)):
-        roidb[i]['image'] = imdb.image_path_at(i)
-        roidb[i]['lidar_bv'] = imdb.lidar_path_at(i)
+        roidb[i]['image_path'] = imdb.image_path_at(i)
+        roidb[i]['lidar_bv_path'] = imdb.lidar_path_at(i)
         roidb[i]['width'] = sizes[i][1]
         roidb[i]['height'] = sizes[i][0]
         # print(imdb.image_path_at[i])

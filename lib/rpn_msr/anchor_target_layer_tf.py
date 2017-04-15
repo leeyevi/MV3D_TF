@@ -12,12 +12,13 @@ import numpy as np
 import numpy.random as npr
 from generate_anchors import generate_anchors_bv
 from utils.cython_bbox import bbox_overlaps
-from fast_rcnn.bbox_transform import bbox_transform
+from fast_rcnn.bbox_transform import bbox_transform, bbox_transform_3d
+from utils.transform import bv_anchor_to_lidar
 import pdb
 
 DEBUG = False
 
-def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, data, _feat_stride = [16,], anchor_scales = [4 ,8, 16, 32]):
+def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_stride = [16,], anchor_scales = [4 ,8, 16, 32]):
     """
     Assign anchors to ground-truth targets. Produces anchor classification
     labels and bounding-box regression targets.
@@ -154,19 +155,21 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, data, _feat_stride = [
         #print "was %s inds, disabling %s, now %s inds" % (
             #len(bg_inds), len(disable_inds), np.sum(labels == 0))
 
-    bbox_targets = np.zeros((len(inds_inside), 4), dtype=np.float32)
-    bbox_targets = _compute_targets(anchors, gt_boxes[argmax_overlaps, :])
+    bbox_targets = np.zeros((len(inds_inside), 6), dtype=np.float32)
+    # bbox_targets = _compute_targets(anchors, gt_boxes[argmax_overlaps, :])
+    anchors_3d = bv_anchor_to_lidar(anchors) 
+    bbox_targets = _compute_targets_3d(anchors_3d, gt_boxes_3d[argmax_overlaps, :])
 
-    bbox_inside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
-    # bbox_inside_weights[labels == 1, :] = np.array(cfg.TRAIN.RPN_BBOX_INSIDE_WEIGHTS)
-    bbox_inside_weights[labels == 1, :] = np.array([1.0, 1.0, 1., 1.])
+    bbox_inside_weights = np.zeros((len(inds_inside), 6), dtype=np.float32)
+    bbox_inside_weights[labels == 1, :] = np.array(cfg.TRAIN.RPN_BBOX_INSIDE_WEIGHTS)
+    # bbox_inside_weights[labels == 1, :] = np.array([1.0, 1.0, 1., 1.])
 
-    bbox_outside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
+    bbox_outside_weights = np.zeros((len(inds_inside), 6), dtype=np.float32)
     if cfg.TRAIN.RPN_POSITIVE_WEIGHT < 0:
         # uniform weighting of examples (given non-uniform sampling)
         num_examples = np.sum(labels >= 0)
-        positive_weights = np.ones((1, 4)) * 1.0 / num_examples
-        negative_weights = np.ones((1, 4)) * 1.0 / num_examples
+        positive_weights = np.ones((1, 6)) * 1.0 / num_examples
+        negative_weights = np.ones((1, 6)) * 1.0 / num_examples
     else:
         assert ((cfg.TRAIN.RPN_POSITIVE_WEIGHT > 0) &
                 (cfg.TRAIN.RPN_POSITIVE_WEIGHT < 1))
@@ -177,16 +180,16 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, data, _feat_stride = [
     bbox_outside_weights[labels == 1, :] = positive_weights
     bbox_outside_weights[labels == 0, :] = negative_weights
 
-    if DEBUG:
-        _sums += bbox_targets[labels == 1, :].sum(axis=0)
-        _squared_sums += (bbox_targets[labels == 1, :] ** 2).sum(axis=0)
-        _counts += np.sum(labels == 1)
-        means = _sums / _counts
-        stds = np.sqrt(_squared_sums / _counts - means ** 2)
-        print 'means:'
-        print means
-        print 'stdevs:'
-        print stds
+    # if DEBUG:
+    #     _sums += bbox_targets[labels == 1, :].sum(axis=0)
+    #     _squared_sums += (bbox_targets[labels == 1, :] ** 2).sum(axis=0)
+    #     _counts += np.sum(labels == 1)
+    #     means = _sums / _counts
+    #     stds = np.sqrt(_squared_sums / _counts - means ** 2)
+    #     print 'means:'
+    #     print means
+    #     print 'stdevs:'
+    #     print stds
 
     # map up to original set of anchors
     labels = _unmap(labels, total_anchors, inds_inside, fill=-1)
@@ -212,12 +215,12 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, data, _feat_stride = [
 
     # bbox_targets
     bbox_targets = bbox_targets \
-        .reshape((1, height, width, A * 4)).transpose(0, 3, 1, 2)
+        .reshape((1, height, width, A * 6)).transpose(0, 3, 1, 2)
 
     rpn_bbox_targets = bbox_targets
     # bbox_inside_weights
     bbox_inside_weights = bbox_inside_weights \
-        .reshape((1, height, width, A * 4)).transpose(0, 3, 1, 2)
+        .reshape((1, height, width, A * 6)).transpose(0, 3, 1, 2)
     #assert bbox_inside_weights.shape[2] == height
     #assert bbox_inside_weights.shape[3] == width
 
@@ -225,7 +228,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, im_info, data, _feat_stride = [
 
     # bbox_outside_weights
     bbox_outside_weights = bbox_outside_weights \
-        .reshape((1, height, width, A * 4)).transpose(0, 3, 1, 2)
+        .reshape((1, height, width, A * 6)).transpose(0, 3, 1, 2)
     #assert bbox_outside_weights.shape[2] == height
     #assert bbox_outside_weights.shape[3] == width
 
@@ -257,3 +260,12 @@ def _compute_targets(ex_rois, gt_rois):
     assert gt_rois.shape[1] == 5
 
     return bbox_transform(ex_rois, gt_rois[:, :4]).astype(np.float32, copy=False)
+
+def _compute_targets_3d(ex_rois, gt_rois):
+    """Compute bounding-box regression targets for an image."""
+
+    assert ex_rois.shape[0] == gt_rois.shape[0]
+    assert ex_rois.shape[1] == 6
+    assert gt_rois.shape[1] == 7
+
+    return bbox_transform_3d(ex_rois, gt_rois[:, :6]).astype(np.float32, copy=False)

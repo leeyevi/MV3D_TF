@@ -20,7 +20,7 @@ def get_minibatch(roidb, num_classes):
     # Sample random scales to use for each image in this batch
     #  random_scale_inds = npr.randint(0, high=len(cfg.TRAIN.SCALES),
                                     #  size=num_images)
-    random_scale_inds = npr.randint(1, high=2, size=num_images)
+    random_scale_inds = npr.randint(1, high=2, size=num_images) # random_scale_inds = 1 
     assert(cfg.TRAIN.BATCH_SIZE % num_images == 0), \
         'num_images ({}) must divide BATCH_SIZE ({})'. \
         format(num_images, cfg.TRAIN.BATCH_SIZE)
@@ -33,8 +33,8 @@ def get_minibatch(roidb, num_classes):
     # print('im_blob: ', im_blob.shape)
     # print('lidar_bv_blob: ', lidar_bv_blob.shape)
 
-    blobs = {'image': im_blob,
-             'lidar_bv': lidar_bv_blob}
+    blobs = {'image_data': im_blob,
+             'lidar_bv_data': lidar_bv_blob}
 
     if cfg.TRAIN.HAS_RPN:
         assert len(im_scales) == 1, "Single batch only"
@@ -45,16 +45,21 @@ def get_minibatch(roidb, num_classes):
         gt_boxes[:, 0:4] = roidb[0]['boxes'][gt_inds, :] * im_scales[0]
         gt_boxes[:, 4] = roidb[0]['gt_classes'][gt_inds]
         blobs['gt_boxes'] = gt_boxes
-
+        # gt boxes bv: (x1, y1, x2, y2, cls)
         gt_boxes_bv = np.empty((len(gt_inds), 5), dtype=np.float32)
         gt_boxes_bv[:, 0:4] = roidb[0]['boxes_bv'][gt_inds, :]
         gt_boxes_bv[:, 4] = roidb[0]['gt_classes'][gt_inds]
         blobs['gt_boxes_bv'] = gt_boxes_bv
-
+        # gt boxes 3d: (x, y, z, l, w, h, cls)
         gt_boxes_3d = np.empty((len(gt_inds), 7), dtype=np.float32)
         gt_boxes_3d[:, 0:6] = roidb[0]['boxes_3D'][gt_inds, :]
         gt_boxes_3d[:, 6] = roidb[0]['gt_classes'][gt_inds]
         blobs['gt_boxes_3d'] = gt_boxes_3d
+        # gt boxes corners: (x0, ... x7, y0, y1, ... y7, z0, ... z7, cls)
+        gt_boxes_corners = np.empty((len(gt_inds), 25), dtype=np.float32)
+        gt_boxes_corners[:, 0:24] = roidb[0]['boxes_corners'][gt_inds, :]
+        gt_boxes_corners[:, 24] = roidb[0]['gt_classes'][gt_inds]
+        blobs['gt_boxes_corners'] = gt_boxes_corners
 
         blobs['im_info'] = np.array(
             [[lidar_bv_blob.shape[1], lidar_bv_blob.shape[2], im_scales[0]]],
@@ -154,7 +159,7 @@ def _get_image_blob(roidb, scale_inds):
     processed_ims = []
     im_scales = [1]
     for i in xrange(num_images):
-        im = cv2.imread(roidb[i]['image'])
+        im = cv2.imread(roidb[i]['image_path'])
         if roidb[i]['flipped']:
             im = im[:, ::-1, :]
         # # target_size = cfg.TRAIN.SCALES[scale_inds[i]]
@@ -179,7 +184,7 @@ def _get_lidar_bv_blob(roidb, scale_inds):
     for i in xrange(num_images):
 
         # im = cv2.imread(roidb[i]['lidar_bv'])
-        bv = np.load(roidb[i]['lidar_bv'])
+        bv = np.load(roidb[i]['lidar_bv_path'])
 
         processed_bvs.append(bv)
 

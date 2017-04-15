@@ -11,7 +11,7 @@ RoIDataLayer implements a Caffe Python layer.
 """
 
 from fast_rcnn.config import cfg
-from roi_data_layer.minibatch import get_minibatch
+from roi_data_layer.minibatch_mv3d import get_minibatch
 import numpy as np
 
 class RoIDataLayer(object):
@@ -30,7 +30,7 @@ class RoIDataLayer(object):
 
     def _get_next_minibatch_inds(self):
         """Return the roidb indices for the next minibatch."""
-        
+
         if cfg.TRAIN.HAS_RPN:
             if self._cur + cfg.TRAIN.IMS_PER_BATCH >= len(self._roidb):
                 self._shuffle_roidb_inds()
@@ -63,7 +63,7 @@ class RoIDataLayer(object):
         db_inds = self._get_next_minibatch_inds()
         minibatch_db = [self._roidb[i] for i in db_inds]
         return get_minibatch(minibatch_db, self._num_classes)
-            
+
     def forward(self):
         """Get blobs and copy them into this layer's top blob vector."""
         blobs = self._get_next_minibatch()

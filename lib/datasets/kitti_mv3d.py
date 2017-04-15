@@ -14,7 +14,7 @@ import cPickle
 from fast_rcnn.config import cfg
 import math
 from rpn_msr.generate_anchors import generate_anchors_bv
-from utils.transform import lidar_to_bv_single, camera_to_lidar, lidar_to_corners
+from utils.transform import lidar_to_bv_single, camera_to_lidar, lidar_to_corners_single
 
 class kitti_mv3d(datasets.imdb):
     def __init__(self, image_set, kitti_path=None):
@@ -215,7 +215,7 @@ class kitti_mv3d(datasets.imdb):
             boxes3D[ix, :] = [tx, ty, tz, l, w, h]
             boxes3D_lidar[ix, :] = camera_to_lidar(boxes3D[ix, :], P)
             boxes_bv[ix, :] = lidar_to_bv_single(boxes3D_lidar[ix, :])
-            boxes3D_corners[ix, :] = lidar_to_corners(boxes3D_lidar[ix, :])
+            boxes3D_corners[ix, :] = lidar_to_corners_single(boxes3D_lidar[ix, :])
             gt_classes[ix] = cls
             # print cls
             overlaps[ix, cls] = 1.0
