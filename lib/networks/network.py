@@ -51,8 +51,13 @@ class Network(object):
         raise NotImplementedError('Must be subclassed.')
 
     def load(self, data_path, session, saver, ignore_missing=False):
-        if data_path.endswith('.ckpt'):
-            saver.restore(session, data_path)
+        if data_path.endswith('.ckpt.meta'):
+            print '========================'
+            # print data_path.strip('.ckpt.meta')
+            saver = tf.train.import_meta_graph(data_path)
+            saver.restore(session, data_path[:-5])
+            # saver.restore(session,  data_path.strip('.meta'))
+
         else:
             data_dict = np.load(data_path).item()
             for key in data_dict:

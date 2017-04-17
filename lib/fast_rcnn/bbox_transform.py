@@ -57,6 +57,26 @@ def bbox_transform_3d(ex_rois_3d, gt_rois_3d):
         (targets_dx, targets_dy, targets_dz, targets_dl, targets_dw, targets_dh)).transpose()
     return targets
 
+
+def bbox_transform_cnr(ex_rois_3d, gt_rois_3d):
+
+    gt_xyz0 = gt_rois_3d[:, 0::8]
+    gt_xyz6 = gt_rois_3d[:, 5::8]
+
+    mean_xyz0 = gt_xyz0.mean(0)
+    mean_xyz6 = gt_xyz6.mean(0)
+
+    assert(mean_xyz0.shape[0] == 3)
+    assert(mean_xyz6.shape[0] == 3)
+    # box diagonal distance
+    diag = np.linalg.norm(mean_xyz0 - mean_xyz6)
+    assert diag != 0, "diagonal distance could not be zero"
+
+    targets = (gt_rois_3d[:,:] - ex_rois_3d[:,:]) / diag
+
+    return targets
+
+
 def bbox_transform_inv(boxes, deltas):
     if boxes.shape[0] == 0:
         return np.zeros((0, deltas.shape[1]), dtype=deltas.dtype)
@@ -87,6 +107,79 @@ def bbox_transform_inv(boxes, deltas):
     pred_boxes[:, 2::4] = pred_ctr_x + 0.5 * pred_w
     # y2
     pred_boxes[:, 3::4] = pred_ctr_y + 0.5 * pred_h
+
+    return pred_boxes
+
+def bbox_transform_inv_3d(boxes, deltas):
+    if boxes.shape[0] == 0:
+        return np.zeros((0, deltas.shape[1]), dtype=deltas.dtype)
+
+    boxes = boxes.astype(deltas.dtype, copy=False)
+
+    # widths = boxes[:, 2] - boxes[:, 0] + 1.0
+    # heights = boxes[:, 3] - boxes[:, 1] + 1.0
+    # ctr_x = boxes[:, 0] + 0.5 * widths
+    # ctr_y = boxes[:, 1] + 0.5 * heights
+    # print("boxes shape", boxes.shape)
+
+    lengths = boxes[:, 3]
+    widths = boxes[:, 4]
+    heights = boxes[:, 5]
+    ctr_x = boxes[:, 0]
+    ctr_y = boxes[:, 1]
+    ctr_z = boxes[:, 2]
+
+    dx = deltas[:, 0::6] # stride = 4
+    dy = deltas[:, 1::6]
+    dz = deltas[:, 2::6]
+    dl = deltas[:, 3::6]
+    dw = deltas[:, 4::6]
+    dh = deltas[:, 5::6]
+
+    pred_ctr_x = dx * lengths[:, np.newaxis] + ctr_x[:, np.newaxis]
+    pred_ctr_y = dy * widths[:, np.newaxis] + ctr_y[:, np.newaxis]
+    pred_ctr_z = dz * heights[:, np.newaxis] + ctr_y[:, np.newaxis]
+    pred_l = np.exp(dl) * lengths[:, np.newaxis]
+    pred_w = np.exp(dw) * widths[:, np.newaxis]
+    pred_h = np.exp(dh) * heights[:, np.newaxis]
+
+    pred_boxes = np.zeros(deltas.shape, dtype=deltas.dtype)
+    # x
+    pred_boxes[:, 0::6] = pred_ctr_x
+    # y
+    pred_boxes[:, 1::6] = pred_ctr_y
+    # z
+    pred_boxes[:, 2::6] = pred_ctr_z
+    # l
+    pred_boxes[:, 3::6] = pred_l
+    # w
+    pred_boxes[:, 4::6] = pred_w
+    # h
+    pred_boxes[:, 5::6] = pred_h
+
+    return pred_boxes
+
+def bbox_transform_inv_cnr(boxes, deltas):
+    if boxes.shape[0] == 0:
+        return np.zeros((0, deltas.shape[1]), dtype=deltas.dtype)
+
+    boxes = boxes.astype(deltas.dtype, copy=False)
+
+
+    gt_xyz0 = boxes[:, 0::8]
+    gt_xyz6 = boxes[:, 5::8]
+
+    mean_xyz0 = gt_xyz0.mean(0)
+    mean_xyz6 = gt_xyz6.mean(0)
+
+    # assert(mean_xyz0.shape[0] == 3)
+    # assert(mean_xyz6.shape[0] == 3)
+
+    # box diagonal distance
+    diag = np.linalg.norm(mean_xyz0[:3] - mean_xyz6[:3])
+
+    pred_boxes = deltas * diag + boxes
+
 
     return pred_boxes
 

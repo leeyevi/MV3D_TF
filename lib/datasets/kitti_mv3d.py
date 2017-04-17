@@ -3,6 +3,7 @@ __author__ = 'yuxiang' # derived from honda.py by fyang
 import datasets
 import datasets.kitti_mv3d
 import os
+import time
 import PIL
 import datasets.imdb
 import numpy as np
@@ -25,10 +26,11 @@ class kitti_mv3d(datasets.imdb):
                             else kitti_path
         # self._data_path = '$Faster-RCNN_TF/data/KITTI/object'
         self._data_path = os.path.join(self._kitti_path, 'object')
-        self._classes = ('__background__', 'Car', 'Pedestrian', 'Cyclist')
+        self._classes = ('__background__', 'Car')#, 'Pedestrian', 'Cyclist')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.png'
         self._lidar_ext = '.npy'
+        self._subset = 'car'
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
 
@@ -171,8 +173,8 @@ class kitti_mv3d(datasets.imdb):
         with open(filename, 'r') as f:
             lines = f.readlines()
         num_objs = len(lines)
-        boxes = np.zeros((num_objs, 4), dtype=np.uint16)
-        boxes_bv = np.zeros((num_objs, 4), dtype=np.uint16)
+        boxes = np.zeros((num_objs, 4), dtype=np.float32)
+        boxes_bv = np.zeros((num_objs, 4), dtype=np.float32)
         boxes3D = np.zeros((num_objs, 6), dtype=np.float32)
         boxes3D_lidar = np.zeros((num_objs, 6), dtype=np.float32)
         boxes3D_corners = np.zeros((num_objs, 24), dtype=np.float32)
@@ -217,7 +219,6 @@ class kitti_mv3d(datasets.imdb):
             boxes_bv[ix, :] = lidar_to_bv_single(boxes3D_lidar[ix, :])
             boxes3D_corners[ix, :] = lidar_to_corners_single(boxes3D_lidar[ix, :])
             gt_classes[ix] = cls
-            # print cls
             overlaps[ix, cls] = 1.0
 
         alphas.resize(ix+1)
@@ -259,13 +260,13 @@ class kitti_mv3d(datasets.imdb):
         else:
             return 4
 
-    def _write_kitti_results_file(self, all_boxes, all_boxes3D):
+    def _write_corners_results_file(self, all_boxes, all_boxes3D):
         # use_salt = self.config['use_salt']
         # comp_id = ''
         # if use_salt:
         #     comp_id += '{}'.format(os.getpid())
 
-        path = os.path.join(datasets.ROOT_DIR, 'kitti/results', 'kitti_' + self._subset + '_' + self._image_set + '_' + comp_id \
+        path = os.path.join(datasets.ROOT_DIR, 'kitti/results', 'kitti_' + self._subset + '_' + self._image_set + '_' \
                                         + '-' + time.strftime('%m-%d-%H-%M-%S',time.localtime(time.time())), 'data')
         if os.path.exists(path):
             pass
@@ -278,7 +279,7 @@ class kitti_mv3d(datasets.imdb):
                     if cls == '__background__':
                         continue
                     dets = all_boxes[cls_ind][im_ind]
-                    dets3D = all_boxes3D[cls_ind][im_ind]
+                    # dets3D = all_boxes3D[cls_ind][im_ind]
                     # alphas = all_alphas[cls_ind][im_ind]
                     if dets == []:
                         continue
@@ -293,15 +294,54 @@ class kitti_mv3d(datasets.imdb):
                                 dets3D[k, 4], dets3D[k, 5], dets3D[k, 6], dets3D[k, 0], dets[k, 4]))
         return path
 
+    def _write_kitti_results_file(self, all_boxes, all_boxes3D):
+        # use_salt = self.config['use_salt']
+        # comp_id = ''
+        # if use_salt:
+        #     comp_id += '{}'.format(os.getpid())
+
+        path = os.path.join(datasets.ROOT_DIR, 'kitti/results_cnr', 'kitti_' + self._subset + '_' + self._image_set + '_' + comp_id \
+                                        + '-' + time.strftime('%m-%d-%H-%M-%S',time.localtime(time.time())), 'data')
+        if os.path.exists(path):
+            pass
+        else:
+            os.makedirs(path)
+        for im_ind, index in enumerate(self.image_index):
+            filename = os.path.join(path, index + '.npy')
+            with open(filename, 'wt') as f:
+                for cls_ind, cls in enumerate(self.classes):
+                    if cls == '__background__':
+                        continue
+                    dets = all_boxes[cls_ind][im_ind]
+                    dets3D = all_boxes3D[cls_ind][im_ind]
+                    # alphas = all_alphas[cls_ind][im_ind]
+                    if dets == []:
+                        continue
+                    # the KITTI server expects 0-based indices
+                    for k in xrange(dets.shape[0]):
+                        obj = np.hstack((dets[k], dets3D[k, 1:]))
+                        print obj.shape
+                        np.save(obj, filename)
+                        # # TODO
+                        # alpha = dets3D[k, 0] - np.arctan2(dets3D[k, 4], dets3D[k, 6])
+                        # f.write('{:s} -1 -1 {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.3f}\n' \
+                        #         .format(cls.lower(), alpha, \
+                        #         dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3], \
+                        #         dets3D[k, 2], dets3D[k, 3], dets3D[k, 1], \
+                        #         dets3D[k, 4], dets3D[k, 5], dets3D[k, 6], dets3D[k, 0], dets[k, 4]))
+        print 'Done'
+        # return path
+
     def _do_eval(self, path, output_dir='output'):
         cmd = os.path.join(datasets.ROOT_DIR, 'kitti/eval/cpp/evaluate_object {}'.format(os.path.dirname(path)))
         print('Running:\n{}'.format(cmd))
         status = subprocess.call(cmd, shell=True)
 
     def evaluate_detections(self, all_boxes, all_boxes3D, output_dir):
-        path = self._write_kitti_results_file(all_boxes, all_boxes3D)
-        if self._image_set != 'test':
-            self._do_eval(path)
+        self._write_corners_results_file(all_boxes, all_boxes3D)
+        # path = self._write_kitti_results_file(all_boxes, all_boxes3D)
+        # if self._image_set != 'test':
+        #     self._do_eval(path)
 
 
 if __name__ == '__main__':

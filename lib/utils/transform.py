@@ -7,7 +7,8 @@ TOP_Y_MAX = 40
 RES = 0.1
 LIDAR_HEIGHT = 1.73
 CAR_HEIGHT = 1.56
-
+X0, Xn = 0, int((TOP_X_MAX - TOP_X_MIN) // RES) + 1
+Y0, Yn = 0, int((TOP_Y_MAX - TOP_Y_MIN) // RES) + 1
 
 def _lidar_to_bv_coord(x, y):
     X0, Xn = 0, int((TOP_X_MAX - TOP_X_MIN) // RES) + 1
@@ -33,6 +34,14 @@ def lidar_to_bv_single(rois_3d):
 
     rois[0], rois[1] = _lidar_to_bv_coord(rois[0], rois[1])
     rois[2], rois[3] = _lidar_to_bv_coord(rois[2], rois[3])
+
+
+    # print rois
+    # assert rois[0] < 1000
+    # assert rois[2] < 1000
+    # assert rois[1] < 1000
+    # assert rois[3] < 1000
+
 
     return rois
 
@@ -223,6 +232,26 @@ def _projectToImage(pts_3D, P):
     pts_2D[1, :] = pts_2D[1, :] / pts_2D[2, :]
     pts_2D = np.delete(pts_2D, 2, 0)
     # pts_2D[2,:] = np.zeros(())
+    return pts_2D
+
+def corners_to_bv(corners):
+    pts_2D = np.zeros((corners.shape[0], 4))
+
+    x04 = (corners[:, 0] + corners[:, 4]) * 0.5
+    y04 = (corners[:, 8] + corners[:, 12]) * 0.5
+    x26 = (corners[:, 2] + corners[:, 6]) * 0.5
+    y26 = (corners[:, 10] + corners[:, 14]) * 0.5
+
+    x04 = x04.reshape(-1, 1)
+    y04 = y04.reshape(-1, 1)
+    x26 = x26.reshape(-1, 1)
+    y26 = y26.reshape(-1, 1)
+
+    pts_2D = np.hstack((x04, y04, x26, y26))
+
+    pts_2D[:, 0], pts_2D[:, 1] = _lidar_to_bv_coord(pts_2D[:, 0], pts_2D[:, 1])
+    pts_2D[:, 2], pts_2D[:, 3] = _lidar_to_bv_coord(pts_2D[:, 2], pts_2D[:, 3])
+
     return pts_2D
 
 
