@@ -51,6 +51,7 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
     # convert to lidar bv 
     # all_rois =   lidar_to_bv(rpn_rois_3d)
     all_rois = rpn_rois_bv
+    # print "gt_boxes_bv: ", gt_boxes_bv
     if DEBUG:
         print "gt_boxes_bv: ", gt_boxes_bv, gt_boxes_bv.shape
         print "gt_boxes_bv: ", gt_boxes_bv[:, :-1]
@@ -100,7 +101,7 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
         # _bg_num += (labels == 0).sum()
         # print 'num fg avg: {}'.format(_fg_num / _count)
         # print 'num bg avg: {}'.format(_bg_num / _count)
-        # print 'ratio: {:.3f}'.format(float(_fg_num) / float(_bg_num))
+        # print 'ratio: {:.3f}'.format(float(_fg_num) /float(_bg_num))
 
     rois_bv = rois_bv.reshape(-1, 5).astype(np.float32)
     # rois_img = rois_img.reshape(-1, 5).astype(np.float32)
@@ -235,6 +236,7 @@ def _compute_targets_cnr(ex_rois_cnr, gt_rois_cnr, labels):
     assert ex_rois_cnr.shape[0] == gt_rois_cnr.shape[0]
     assert ex_rois_cnr.shape[1] == 24
     assert gt_rois_cnr.shape[1] == 24
+    assert np.any(gt_rois_cnr), "gt rois cnr should not be empty"
 
     targets = bbox_transform_cnr(ex_rois_cnr, gt_rois_cnr)
     # if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
@@ -304,6 +306,9 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
         print "rois_3d shape:, ", rois_3d.shape
         print "rois_cnr shape:, ", rois_cnr.shape
 
+    # print "_sample_rois_3d: ", gt_boxes_corners
+    # print gt_assignment
+    # print gt_assignment[keep_inds]
     bbox_target_data = _compute_targets_cnr(
         rois_cnr[:, 1:25], gt_boxes_corners[gt_assignment[keep_inds], :24], labels)
     bbox_targets, bbox_inside_weights = \

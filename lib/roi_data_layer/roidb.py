@@ -22,14 +22,22 @@ def prepare_roidb(imdb):
     """
     #  sizes = [PIL.Image.open(imdb.image_path_at(i)).size
              #  for i in xrange(imdb.num_images)]
-    sizes = [np.load(imdb.lidar_path_at(i)).shape for i in xrange(imdb.num_images)]
+    # sizes = [np.load(imdb.lidar_path_at(i)).shape for i in xrange(imdb.num_images)]
+    sizes = [704, 801]
     roidb = imdb.roidb
 
+    # TODO: choose i from imageset
     for i in xrange(len(imdb.image_index)):
+        # print('Processing : ', i)
+        # print roidb[0]
+        if roidb[i]['boxes_corners'] == []:
+            # print roidb[7000]
+            print 'boxes_corners not correct', imdb.image_path_at(i)
+            continue
         roidb[i]['image_path'] = imdb.image_path_at(i)
         roidb[i]['lidar_bv_path'] = imdb.lidar_path_at(i)
-        roidb[i]['width'] = sizes[i][1]
-        roidb[i]['height'] = sizes[i][0]
+        roidb[i]['width'] = sizes[1]#sizes[i][1]
+        roidb[i]['height'] = sizes[0]#sizes[i][0]
         # print(imdb.image_path_at[i])
         # need gt_overlaps as a dense array for argmax
         gt_overlaps = roidb[i]['gt_overlaps'].toarray()

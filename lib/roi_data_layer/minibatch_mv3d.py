@@ -50,6 +50,9 @@ def get_minibatch(roidb, num_classes):
         gt_boxes_bv[:, 0:4] = roidb[0]['boxes_bv'][gt_inds, :]
         gt_boxes_bv[:, 4] = roidb[0]['gt_classes'][gt_inds]
         blobs['gt_boxes_bv'] = gt_boxes_bv
+
+        # print "minibatch: ", gt_boxes_bv[:,:4]
+
         # gt boxes 3d: (x, y, z, l, w, h, cls)
         gt_boxes_3d = np.empty((len(gt_inds), 7), dtype=np.float32)
         gt_boxes_3d[:, 0:6] = roidb[0]['boxes_3D'][gt_inds, :]

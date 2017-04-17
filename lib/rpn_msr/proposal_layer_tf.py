@@ -250,6 +250,9 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_s
     proposals_3d = bbox_transform_inv_3d(anchors_3d, bbox_deltas)
     # convert back to lidar_bv
     proposals_bv = lidar_to_bv_4(proposals_3d)
+
+    print "bbox_deltas: ", bbox_deltas[:10]
+    print "proposals_bv", proposals_bv[:10]
     if DEBUG:
         print "proposals number: "
         print "proposals_bv shape: ", proposals_bv.shape
@@ -288,6 +291,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_s
     proposals_3d = proposals_3d[keep, :]
     scores = scores[keep]
 
+    print "proposals_bv", proposals_bv[:10]
+    print "scores: ", scores[:10]
     if DEBUG:
         print "proposals after nms"
         print "proposals_bv shape: ", proposals_bv.shape
