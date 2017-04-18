@@ -15,7 +15,7 @@ import cPickle
 from fast_rcnn.config import cfg
 import math
 from rpn_msr.generate_anchors import generate_anchors_bv
-from utils.transform import lidar_to_bv_single, camera_to_lidar, lidar_to_corners_single
+from utils.transform import camera_to_lidar_cnr, lidar_to_corners_single, computeCorners3D, corners_to_bv_single, lidar_cnr_to_3d
 
 class kitti_mv3d(datasets.imdb):
     def __init__(self, image_set, kitti_path=None):
@@ -134,7 +134,7 @@ class kitti_mv3d(datasets.imdb):
 
     def _load_kitti_calib(self, index):
         """
-        load 3x4 projection matrix: velo to cam
+        load projection matrix
 
         """
         if self._image_set == 'test':
@@ -142,21 +142,39 @@ class kitti_mv3d(datasets.imdb):
         else:
             prefix = 'training/calib'
         calib_dir = os.path.join(self._data_path, prefix, index + '.txt')
+        
+#         P0 = np.zeros(12, dtype=np.float32)
+#         P1 = np.zeros(12, dtype=np.float32)
+#         P2 = np.zeros(12, dtype=np.float32)
+#         P3 = np.zeros(12, dtype=np.float32)
+#         R0 = np.zeros(9, dtype=np.float32)
+#         Tr_velo_to_cam = np.zeros(12, dtype=np.float32)
+#         Tr_imu_to_velo = np.zeros(12, dtype=np.float32)
 
-        j = 0
+#         j = 0
         with open(calib_dir) as fi:
-            for line in fi:
-                j += 1
-                if j == 6:
-                    # print(j)
-                    line = line.split(' ')[1:]
-                    # print(line)
-                    P = np.array(line).astype(np.float64)
-                    break
-
-        P = P.reshape((3, 4))
-
-        return P
+            lines = fi.readlines()
+#             assert(len(lines) == 8)
+        
+#         obj = lines[0].strip().split(' ')[1:]
+#         P0 = np.array(obj, dtype=np.float32)
+#         obj = lines[1].strip().split(' ')[1:]
+#         P1 = np.array(obj, dtype=np.float32)
+        obj = lines[2].strip().split(' ')[1:]
+        P2 = np.array(obj, dtype=np.float32)
+        obj = lines[3].strip().split(' ')[1:]
+        P3 = np.array(obj, dtype=np.float32)
+        obj = lines[4].strip().split(' ')[1:]
+        R0 = np.array(obj, dtype=np.float32)
+        obj = lines[5].strip().split(' ')[1:]
+        Tr_velo_to_cam = np.array(obj, dtype=np.float32)
+#         obj = lines[6].strip().split(' ')[1:]
+#         P0 = np.array(obj, dtype=np.float32)
+            
+        return {'P2' : P2.reshape(3,4),
+                'P3' : P3.reshape(3,4),
+                'R0' : R0.reshape(3,3),
+                'Tr_velo2cam' : Tr_velo_to_cam.reshape(3, 4)}
 
     def _load_kitti_annotation(self, index):
         """
@@ -165,18 +183,24 @@ class kitti_mv3d(datasets.imdb):
         """
         # filename = '$Faster-RCNN_TF/data/KITTI/object/training/label_2/000000.txt'
         filename = os.path.join(self._data_path, 'training/label_2', index + '.txt')
-        print("Loading: ", filename)
+#         print("Loading: ", filename)
 
-        P = self._load_kitti_calib(index)
+        # calib
+        calib = self._load_kitti_calib(index)
+        Tr = calib['Tr_velo2cam']
 
         # print 'Loading: {}'.format(filename)
         with open(filename, 'r') as f:
             lines = f.readlines()
         num_objs = len(lines)
+        translation = np.zeros((num_objs, 3), dtype=np.float32)
+        rys = np.zeros((num_objs), dtype=np.float32)
+        lwh = np.zeros((num_objs, 3), dtype=np.float32)
         boxes = np.zeros((num_objs, 4), dtype=np.float32)
         boxes_bv = np.zeros((num_objs, 4), dtype=np.float32)
         boxes3D = np.zeros((num_objs, 6), dtype=np.float32)
         boxes3D_lidar = np.zeros((num_objs, 6), dtype=np.float32)
+        boxes3D_cam_cnr = np.zeros((num_objs, 24), dtype=np.float32)
         boxes3D_corners = np.zeros((num_objs, 24), dtype=np.float32)
         alphas = np.zeros((num_objs), dtype=np.float32)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
@@ -212,20 +236,34 @@ class kitti_mv3d(datasets.imdb):
             tz = float(obj[13])
             ry = float(obj[14])
 
+            rys[ix] = ry
+            lwh[ix, :] = [l, h, w]
             alphas[ix] = alpha
+            translation[ix, :] = [tx, ty, tz]
             boxes[ix, :] = [x1, y1, x2, y2]
             boxes3D[ix, :] = [tx, ty, tz, l, w, h]
-            boxes3D_lidar[ix, :] = camera_to_lidar(boxes3D[ix, :], P)
-            boxes_bv[ix, :] = lidar_to_bv_single(boxes3D_lidar[ix, :])
-            boxes3D_corners[ix, :] = lidar_to_corners_single(boxes3D_lidar[ix, :])
+            # convert boxes3D cam to 8 corners(cam)
+            boxes3D_cam_cnr_single = computeCorners3D(boxes3D[ix, :], ry)
+            boxes3D_cam_cnr[ix, :] = boxes3D_cam_cnr_single.reshape(24)
+            # convert 8 corners(cam) to 8 corners(lidar)
+            boxes3D_corners[ix, :] = camera_to_lidar_cnr(boxes3D_cam_cnr_single, Tr)
+            # convert 8 corners(cam) to  lidar boxes3D
+            boxes3D_lidar[ix, :] = lidar_cnr_to_3d(boxes3D_corners[ix, :], lwh[ix,:])
+            # convert 8 corners(lidar) to lidar bird view
+            boxes_bv[ix, :] = corners_to_bv_single(boxes3D_corners[ix, :])
+            # boxes3D_corners[ix, :] = lidar_to_corners_single(boxes3D_lidar[ix, :])
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
 
+        rys.resize(ix+1)
+        lwh.resize(ix+1, 3)
+        translation.resize(ix+1, 3)
         alphas.resize(ix+1)
         boxes.resize(ix+1, 4)
         boxes_bv.resize(ix+1, 4)
         boxes3D.resize(ix+1, 6)
         boxes3D_lidar.resize(ix+1, 6)
+        boxes3D_cam_cnr.resize(ix+1, 24)
         boxes3D_corners.resize(ix+1, 24)
         gt_classes.resize(ix+1)
         # print(self.num_classes)
@@ -238,12 +276,16 @@ class kitti_mv3d(datasets.imdb):
         #     print(overlaps)
 
 
-        return {'boxes' : boxes,
+        return {'ry' : rys,
+                'lwh' : lwh,
+                'boxes' : boxes,
                 'boxes_bv' : boxes_bv,
                 'boxes_3D' : boxes3D_lidar,
+                'boxes3D_cam_corners' : boxes3D_cam_cnr,
                 'boxes_corners' : boxes3D_corners,
                 'gt_classes': gt_classes,
                 'gt_overlaps' : overlaps,
+                'xyz' : translation,
                 'alphas' :alphas,
                 'flipped' : False}
 
@@ -260,7 +302,7 @@ class kitti_mv3d(datasets.imdb):
         else:
             return 4
 
-    def _write_corners_results_file(self, all_boxes, all_boxes3D):
+    def _write_kitti_results_file(self, all_boxes, all_boxes3D):
         # use_salt = self.config['use_salt']
         # comp_id = ''
         # if use_salt:
@@ -294,13 +336,13 @@ class kitti_mv3d(datasets.imdb):
                                 dets3D[k, 4], dets3D[k, 5], dets3D[k, 6], dets3D[k, 0], dets[k, 4]))
         return path
 
-    def _write_kitti_results_file(self, all_boxes, all_boxes3D):
+    def _write_corners_results_file(self, all_boxes, all_boxes3D):
         # use_salt = self.config['use_salt']
         # comp_id = ''
         # if use_salt:
         #     comp_id += '{}'.format(os.getpid())
 
-        path = os.path.join(datasets.ROOT_DIR, 'kitti/results_cnr', 'kitti_' + self._subset + '_' + self._image_set + '_' + comp_id \
+        path = os.path.join(datasets.ROOT_DIR, 'kitti/results_cnr', 'kitti_' + self._subset + '_' + self._image_set + '_' \
                                         + '-' + time.strftime('%m-%d-%H-%M-%S',time.localtime(time.time())), 'data')
         if os.path.exists(path):
             pass
@@ -320,8 +362,8 @@ class kitti_mv3d(datasets.imdb):
                     # the KITTI server expects 0-based indices
                     for k in xrange(dets.shape[0]):
                         obj = np.hstack((dets[k], dets3D[k, 1:]))
-                        print obj.shape
-                        np.save(obj, filename)
+                        # print obj.shape
+                        np.save(filename, obj)
                         # # TODO
                         # alpha = dets3D[k, 0] - np.arctan2(dets3D[k, 4], dets3D[k, 6])
                         # f.write('{:s} -1 -1 {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.3f}\n' \
