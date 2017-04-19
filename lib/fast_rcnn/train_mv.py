@@ -47,19 +47,19 @@ class SolverWrapper(object):
         """
         net = self.net
 
-        if cfg.TRAIN.BBOX_REG and net.layers.has_key('bbox_pred'):
-            # save original values
-            with tf.variable_scope('bbox_pred', reuse=True):
-                weights = tf.get_variable("weights")
-                biases = tf.get_variable("biases")
+        # if cfg.TRAIN.BBOX_REG and net.layers.has_key('bbox_pred'):
+        #     # save original values
+        #     with tf.variable_scope('bbox_pred', reuse=True):
+        #         weights = tf.get_variable("weights")
+        #         biases = tf.get_variable("biases")
 
-            orig_0 = weights.eval()
-            orig_1 = biases.eval()
+        #     orig_0 = weights.eval()
+        #     orig_1 = biases.eval()
 
-            # scale and shift with bbox reg unnormalization; then save snapshot
-            weights_shape = weights.get_shape().as_list()
-            sess.run(net.bbox_weights_assign, feed_dict={net.bbox_weights: orig_0 * np.tile(self.bbox_stds, (weights_shape[0], 1))})
-            sess.run(net.bbox_bias_assign, feed_dict={net.bbox_biases: orig_1 * self.bbox_stds + self.bbox_means})
+        #     # scale and shift with bbox reg unnormalization; then save snapshot
+        #     weights_shape = weights.get_shape().as_list()
+        #     sess.run(net.bbox_weights_assign, feed_dict={net.bbox_weights: orig_0 * np.tile(self.bbox_stds, (weights_shape[0], 1))})
+        #     sess.run(net.bbox_bias_assign, feed_dict={net.bbox_biases: orig_1 * self.bbox_stds + self.bbox_means})
 
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
@@ -73,13 +73,13 @@ class SolverWrapper(object):
         self.saver.save(sess, filename)
         print 'Wrote snapshot to: {:s}'.format(filename)
 
-        if cfg.TRAIN.BBOX_REG and net.layers.has_key('bbox_pred'):
-            with tf.variable_scope('bbox_pred', reuse=True):
-                # restore net to original state
-                sess.run(net.bbox_weights_assign, feed_dict={net.bbox_weights: orig_0})
-                sess.run(net.bbox_bias_assign, feed_dict={net.bbox_biases: orig_1})
+        # if cfg.TRAIN.BBOX_REG and net.layers.has_key('bbox_pred'):
+        #     with tf.variable_scope('bbox_pred', reuse=True):
+        #         # restore net to original state
+        #         sess.run(net.bbox_weights_assign, feed_dict={net.bbox_weights: orig_0})
+        #         sess.run(net.bbox_bias_assign, feed_dict={net.bbox_biases: orig_1})
 
-    def _modified_smooth_l1(self, sigma, bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights):
+    def _modified_smooth_l1(self, sigma, bbox_pred, bbox_targets):
         """
             ResultLoss = outside_weights * SmoothL1(inside_weights * (bbox_pred - bbox_targets))
             SmoothL1(x) = 0.5 * (sigma * x)^2,    if |x| < 1 / sigma^2
@@ -89,15 +89,14 @@ class SolverWrapper(object):
 
         # print(bbox_pred.shape)
         # print(bbox_targets.shape)
-        inside_mul = tf.multiply(bbox_inside_weights, tf.subtract(bbox_pred, bbox_targets))
+        diffs = tf.subtract(bbox_pred, bbox_targets)
 
-        smooth_l1_sign = tf.cast(tf.less(tf.abs(inside_mul), 1.0 / sigma2), tf.float32)
-        smooth_l1_option1 = tf.multiply(tf.multiply(inside_mul, inside_mul), 0.5 * sigma2)
-        smooth_l1_option2 = tf.subtract(tf.abs(inside_mul), 0.5 / sigma2)
+        smooth_l1_sign = tf.cast(tf.less(tf.abs(diffs), 1.0 / sigma2), tf.float32)
+        smooth_l1_option1 = tf.multiply(tf.multiply(diffs, diffs), 0.5 * sigma2)
+        smooth_l1_option2 = tf.subtract(tf.abs(diffs), 0.5 / sigma2)
         smooth_l1_result = tf.add(tf.multiply(smooth_l1_option1, smooth_l1_sign),
                                   tf.multiply(smooth_l1_option2, tf.abs(tf.subtract(smooth_l1_sign, 1.0))))
-
-        outside_mul = tf.multiply(bbox_outside_weights, smooth_l1_result)
+        outside_mul = smooth_l1_result
 
         return outside_mul
 
@@ -120,17 +119,14 @@ class SolverWrapper(object):
         # bounding box regression L1 loss
         rpn_bbox_pred = self.net.get_output('rpn_bbox_pred')
         rpn_bbox_targets = tf.transpose(self.net.get_output('rpn-data')[1],[0,2,3,1])
-        rpn_bbox_inside_weights = tf.transpose(self.net.get_output('rpn-data')[2],[0,2,3,1])
-        rpn_bbox_outside_weights = tf.transpose(self.net.get_output('rpn-data')[3],[0,2,3,1])
 
-
-        rpn_smooth_l1 = self._modified_smooth_l1(3.0, rpn_bbox_pred, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights)
+        rpn_smooth_l1 = self._modified_smooth_l1(3.0, rpn_bbox_pred, rpn_bbox_targets)
         rpn_loss_box = tf.multiply(tf.reduce_mean(tf.reduce_sum(rpn_smooth_l1, reduction_indices=[1, 2, 3])), 10)
 
         # R-CNN
         # classification loss
         cls_score = self.net.get_output('cls_score')
-        label = tf.reshape(self.net.get_output('roi_data_3d')[1],[-1])
+        label = tf.reshape(self.net.get_output('roi_data_3d')[2],[-1])
         # print('label',label.shape)
         # print('cla_score_shape',cls_score.shape)
         # print(label.dtype)
@@ -138,11 +134,9 @@ class SolverWrapper(object):
 
         # bounding box regression L1 loss
         bbox_pred = self.net.get_output('bbox_pred')
-        bbox_targets = self.net.get_output('roi_data_3d')[2]
-        bbox_inside_weights = self.net.get_output('roi_data_3d')[3]
-        bbox_outside_weights = self.net.get_output('roi_data_3d')[4]
+        bbox_targets = self.net.get_output('roi_data_3d')[3]
 
-        smooth_l1 = self._modified_smooth_l1(1.0, bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
+        smooth_l1 = self._modified_smooth_l1(3.0, bbox_pred, bbox_targets)
         loss_box = tf.multiply(tf.reduce_mean(tf.reduce_sum(smooth_l1, reduction_indices=[1])), 10)
 
         # final loss
@@ -159,10 +153,10 @@ class SolverWrapper(object):
 
         # iintialize variables
         sess.run(tf.global_variables_initializer())
-        if self.pretrained_model is not None:
-            print ('Loading pretrained model '
-                   'weights from {:s}').format(self.pretrained_model)
-            self.net.load(self.pretrained_model, sess, self.saver, True)
+        # if self.pretrained_model is not None:
+        #     print ('Loading pretrained model '
+        #            'weights from {:s}').format(self.pretrained_model)
+        #     self.net.load(self.pretrained_model, sess, self.saver, True)
 
         last_snapshot_iter = -1
         timer = Timer()
@@ -171,13 +165,15 @@ class SolverWrapper(object):
             blobs = data_layer.forward()
 
             # Make one SGD update
-            feed_dict={self.net.lidar_bv_data: blobs['lidar_bv_data'], 
+            feed_dict={self.net.image_data: blobs['image_data'],
+                        self.net.lidar_bv_data: blobs['lidar_bv_data'], 
                        self.net.im_info: blobs['im_info'],
                        self.net.keep_prob: 0.5, 
                        self.net.gt_boxes: blobs['gt_boxes'],
                        self.net.gt_boxes_bv: blobs['gt_boxes_bv'],
                        self.net.gt_boxes_3d: blobs['gt_boxes_3d'], 
-                       self.net.gt_boxes_corners: blobs['gt_boxes_corners']}
+                       self.net.gt_boxes_corners: blobs['gt_boxes_corners'],
+                       self.net.calib: blobs['calib']}
 
             run_options = None
             run_metadata = None
@@ -193,7 +189,7 @@ class SolverWrapper(object):
                 run_metadata=run_metadata)
 
             timer.toc()
-            print 'bbox_pred', loss_box_value * 1
+            # print 'bbox_pred', loss_box_value * 1
 
             if cfg.TRAIN.DEBUG_TIMELINE:
                 trace = timeline.Timeline(step_stats=run_metadata.step_stats)

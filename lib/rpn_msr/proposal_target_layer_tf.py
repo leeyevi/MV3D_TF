@@ -11,10 +11,10 @@ import numpy.random as npr
 from fast_rcnn.config import cfg
 from fast_rcnn.bbox_transform import bbox_transform_3d, bbox_transform_cnr
 from utils.cython_bbox import bbox_overlaps
-from utils.transform import lidar_to_corners, lidar_to_bv
+from utils.transform import lidar_3d_to_corners, lidar_to_bv, lidar_cnr_to_img
 import pdb
 
-DEBUG = False
+DEBUG = True
 
 TOP_X_MAX = 70.3
 TOP_X_MIN = 0
@@ -32,13 +32,10 @@ CAR_HEIGHT = 1.56
 # 5. gt_boxes_corners
 # return 
 # 1. rois: lidar_bv (nx4)
-# 2. rois: lidar fv (nx4)
 # 3. rois: image (nx4)
 # 4. labels (nx1)
 # 5. bbox_targets (nx24)
-# 6. bbox_inside_weights
-# 7. bbox_outside_weights (nx24)
-def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d, gt_boxes_corners, _num_classes):
+def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d, gt_boxes_corners, calib, _num_classes):
     """
     Assign object detection proposals to ground-truth targets. Produces proposal
     classification labels and bounding-box regression targets.
@@ -65,6 +62,9 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
     all_rois_3d = np.vstack(
         (rpn_rois_3d, np.hstack((zeros, gt_boxes_3d[:, :-1])))
     )
+    # all_rois_img = np.vstack(
+    #     (rpn_rois_img, np.hstack((zeros, gt_boxes_3d[:, :-1])))
+    # )
     if DEBUG:
         print "rpn rois 3d shape: ", rpn_rois_3d.shape
         print "all_rois bv shape: ", all_rois.shape
@@ -80,12 +80,13 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
 
     # Sample rois with classification labels and bounding box regression
     # targets
-    labels, rois_bv, rois_3d, bbox_targets, bbox_inside_weights = _sample_rois_3d(
+    labels, rois_bv, rois_cnr, rois_3d, bbox_targets = _sample_rois_3d(
         all_rois, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_rois_per_image,
         rois_per_image, _num_classes)
 
-    # rois_img = lidar_to_image(rois_3d, P)
-
+    rois_img = lidar_cnr_to_img(rois_corners[:,1:25],
+                                calib[3], calib[2,:9], calib[0])
+    rois_img = np.hstack((rois_bv[:,0], rois_img))
 
 
     if DEBUG:
@@ -96,24 +97,14 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
         print 'rois_3d shape: ', rois_3d.shape
         print 'bbox_targets shape: ', bbox_targets.shape
         print 'bbox_inside_weights shape: ', bbox_inside_weights.shape
-        # _count += 1
-        # _fg_num += (labels > 0).sum()
-        # _bg_num += (labels == 0).sum()
-        # print 'num fg avg: {}'.format(_fg_num / _count)
-        # print 'num bg avg: {}'.format(_bg_num / _count)
-        # print 'ratio: {:.3f}'.format(float(_fg_num) /float(_bg_num))
 
     rois_bv = rois_bv.reshape(-1, 5).astype(np.float32)
-    # rois_img = rois_img.reshape(-1, 5).astype(np.float32)
+    rois_img = rois_img.reshape(-1, 5).astype(np.float32)
     # rois_3d = rois.reshape(-1,7).astype(np.float32)
     labels = labels.reshape(-1,1).astype(np.int32)
     bbox_targets = bbox_targets.reshape(-1,_num_classes*24).astype(np.float32)
-    bbox_inside_weights = bbox_inside_weights.reshape(-1,_num_classes*24).astype(np.float32)
 
-    bbox_outside_weights = np.array(bbox_inside_weights > 0).astype(np.float32)
-    # print "bbox inside: ", bbox_inside_weights[0]
-
-    return rois_bv, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights
+    return rois_bv, rois_img, labels, bbox_targets
 
 
 def proposal_target_layer(rpn_rois, gt_boxes,_num_classes):
@@ -205,15 +196,15 @@ def _get_bbox_regression_labels_3d(bbox_target_data, num_classes):
 
     clss = np.array(bbox_target_data[:, 0], dtype=np.uint16, copy=True)
     bbox_targets = np.zeros((clss.size, 24 * num_classes), dtype=np.float32)
-    bbox_inside_weights = np.zeros(bbox_targets.shape, dtype=np.float32)
+
     inds = np.where(clss > 0)[0]
     for ind in inds:
         cls = clss[ind]
         start = 24 * cls
         end = start + 24
         bbox_targets[ind, start:end] = bbox_target_data[ind, 1:]
-        bbox_inside_weights[ind, start:end] = cfg.TRAIN.BBOX_INSIDE_WEIGHTS
-    return bbox_targets, bbox_inside_weights
+
+    return bbox_targets
 
 def _compute_targets(ex_rois, gt_rois, labels):
     """Compute bounding-box regression targets for an image."""
@@ -259,14 +250,17 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
     max_overlaps = overlaps.max(axis=1)
     labels = gt_boxes_bv[gt_assignment, 4]
     if DEBUG:
-        print "overlaps: ", overlaps.shape
-        print "gt assignment: ",  gt_assignment.shape
-        print "max_overlaps: ", max_overlaps.shape
-        print gt_boxes_bv.shape
-        print "labels: ", labels.shape
+        print "overlaps: ", overlaps
+        print "gt assignment: ",  gt_assignment
+        print "max_overlaps: ", max_overlaps
+        print gt_boxes_bv
+        print "labels: ", labels
 
     # Select foreground RoIs as those with >= FG_THRESH overlap
     fg_inds = np.where(max_overlaps >= cfg.TRAIN.FG_THRESH)[0]
+    if DEBUG:
+        print "fg_inds: ", fg_inds
+        print "fg_rois_per_image: ", fg_rois_per_image
     # Guard against the case when an image has fewer than fg_rois_per_image
     # foreground RoIs
     fg_rois_per_this_image = int(min(fg_rois_per_image, fg_inds.size))
@@ -296,7 +290,7 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
     rois_bv = all_rois_bv[keep_inds]
     rois_3d = all_rois_3d[keep_inds]
     # print "rois_3d shape: ", rois_3d.shape
-    rois_cnr = lidar_to_corners(rois_3d[:,1:7])
+    rois_cnr = lidar_3d_to_corners(rois_3d[:,1:7])
     rois_cnr = np.hstack((rois_3d[:,0].reshape(-1,1), rois_cnr))
 
     if DEBUG:
@@ -311,10 +305,10 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
     # print gt_assignment[keep_inds]
     bbox_target_data = _compute_targets_cnr(
         rois_cnr[:, 1:25], gt_boxes_corners[gt_assignment[keep_inds], :24], labels)
-    bbox_targets, bbox_inside_weights = \
+    bbox_targets = \
         _get_bbox_regression_labels_3d(bbox_target_data, num_classes)
 
-    return labels, rois_bv, rois_3d, bbox_targets, bbox_inside_weights
+    return labels, rois_bv, rois_cnr, rois_3d, bbox_targets
 
 def _sample_rois(all_rois, gt_boxes, fg_rois_per_image, rois_per_image, num_classes):
     """Generate a random sample of RoIs comprising foreground and background
@@ -363,37 +357,4 @@ def _sample_rois(all_rois, gt_boxes, fg_rois_per_image, rois_per_image, num_clas
         _get_bbox_regression_labels(bbox_target_data, num_classes)
 
     return labels, rois, bbox_targets, bbox_inside_weights
-
-
-def _bv_roi_to_3d(rpn_rois_bv):
-    """ convert rpn rois (0, x1, y1, x2, y2) to lidar 3d anchor (0, x, y, z, l, w, h) """
-     # convert bird view rpn_rois to lidar coordinates
-    rpn_rois_bv[:,1], rpn_rois_bv[:,2] = _bv_to_lidar(rpn_rois_bv[:,1], rpn_rois_bv[:,2])
-    rpn_rois_bv[:,3], rpn_rois_bv[:,4] = _bv_to_lidar(rpn_rois_bv[:,3], rpn_rois_bv[:,4])
-
-    # convert rpn_rois(0, x1, y1, x2, y2) to rpn_rois_ctr (0, x, y, l, w)
-    rpn_rois_ctr = np.zeros(shape=rpn_rois_bv.shape, dtype=rpn_rois_bv.dtype)
-
-    rpn_rois_ctr[:,1] = (rpn_rois_bv[:,1] + rpn_rois_bv[:,3]) * 0.5 # x
-    rpn_rois_ctr[:,2] = (rpn_rois_bv[:,2] + rpn_rois_bv[:,4]) * 0.5 # y
-    rpn_rois_ctr[:,3] = np.abs(rpn_rois_bv[:,3] - rpn_rois_bv[:,1]) # l
-    rpn_rois_ctr[:,4] = np.abs(rpn_rois_bv[:,2] - rpn_rois_bv[:,4]) # w
-
-    # extend rpn_rois_ctr (0, x, y) to 3d rois (0, x, y, z, l, w, h)
-    rshape = rpn_rois_ctr.shape
-    ctr_height = np.ones((rshape[0]))*(- (LIDAR_HEIGHT - CAR_HEIGHT * 0.5))
-    car_height = np.ones((rshape[0]))*CAR_HEIGHT
-    ctr_height = ctr_height.reshape(-1, 1)
-    car_height = car_height.reshape(-1, 1)
-
-    if DEBUG:
-        print rpn_rois_ctr.shape
-        print 'car height shape', car_height.shape
-        print 'ctr shape', ctr_height.shape
-
-    all_rois_3d = np.hstack((rpn_rois_ctr[:,:3],
-                ctr_height, rpn_rois_ctr[:,3:5], car_height))
-    assert(all_rois_3d.shape[1] == 7)
-    return all_rois_3d
-
 

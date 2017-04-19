@@ -13,6 +13,7 @@ import cv2
 from fast_rcnn.config import cfg
 from utils.blob import prep_im_for_blob, im_list_to_blob, lidar_list_to_blob
 
+
 def get_minibatch(roidb, num_classes):
     """Given a roidb, construct a minibatch sampled from it."""
     num_images = len(roidb)
@@ -36,75 +37,41 @@ def get_minibatch(roidb, num_classes):
     blobs = {'image_data': im_blob,
              'lidar_bv_data': lidar_bv_blob}
 
-    if cfg.TRAIN.HAS_RPN:
-        assert len(im_scales) == 1, "Single batch only"
-        assert len(roidb) == 1, "Single batch only"
-        # gt boxes: (x1, y1, x2, y2, cls)
-        gt_inds = np.where(roidb[0]['gt_classes'] != 0)[0]
-        gt_boxes = np.empty((len(gt_inds), 5), dtype=np.float32)
-        gt_boxes[:, 0:4] = roidb[0]['boxes'][gt_inds, :] * im_scales[0]
-        gt_boxes[:, 4] = roidb[0]['gt_classes'][gt_inds]
-        blobs['gt_boxes'] = gt_boxes
-        # gt boxes bv: (x1, y1, x2, y2, cls)
-        gt_boxes_bv = np.empty((len(gt_inds), 5), dtype=np.float32)
-        gt_boxes_bv[:, 0:4] = roidb[0]['boxes_bv'][gt_inds, :]
-        gt_boxes_bv[:, 4] = roidb[0]['gt_classes'][gt_inds]
-        blobs['gt_boxes_bv'] = gt_boxes_bv
+    blobs['calib'] = roidb[0]['calib']
 
-        # print "minibatch: ", gt_boxes_bv[:,:4]
+    assert len(im_scales) == 1, "Single batch only"
+    assert len(roidb) == 1, "Single batch only"
+    # gt boxes: (x1, y1, x2, y2, cls)
+    gt_inds = np.where(roidb[0]['gt_classes'] != 0)[0]
+    gt_boxes = np.empty((len(gt_inds), 5), dtype=np.float32)
+    gt_boxes[:, 0:4] = roidb[0]['boxes'][gt_inds, :] * im_scales[0]
+    gt_boxes[:, 4] = roidb[0]['gt_classes'][gt_inds]
+    blobs['gt_boxes'] = gt_boxes
+    # gt boxes bv: (x1, y1, x2, y2, cls)
+    gt_boxes_bv = np.empty((len(gt_inds), 5), dtype=np.float32)
+    gt_boxes_bv[:, 0:4] = roidb[0]['boxes_bv'][gt_inds, :]
+    gt_boxes_bv[:, 4] = roidb[0]['gt_classes'][gt_inds]
+    blobs['gt_boxes_bv'] = gt_boxes_bv
 
-        # gt boxes 3d: (x, y, z, l, w, h, cls)
-        gt_boxes_3d = np.empty((len(gt_inds), 7), dtype=np.float32)
-        gt_boxes_3d[:, 0:6] = roidb[0]['boxes_3D'][gt_inds, :]
-        gt_boxes_3d[:, 6] = roidb[0]['gt_classes'][gt_inds]
-        blobs['gt_boxes_3d'] = gt_boxes_3d
-        # gt boxes corners: (x0, ... x7, y0, y1, ... y7, z0, ... z7, cls)
-        gt_boxes_corners = np.empty((len(gt_inds), 25), dtype=np.float32)
-        gt_boxes_corners[:, 0:24] = roidb[0]['boxes_corners'][gt_inds, :]
-        gt_boxes_corners[:, 24] = roidb[0]['gt_classes'][gt_inds]
-        blobs['gt_boxes_corners'] = gt_boxes_corners
+    # print "minibatch: ", gt_boxes_bv[:,:4]
 
-        blobs['im_info'] = np.array(
-            [[lidar_bv_blob.shape[1], lidar_bv_blob.shape[2], im_scales[0]]],
-            dtype=np.float32)
-        # blobs['im_info'] = np.array(
-        #     [[im_blob.shape[2], im_blob.shape[3], im_scales[0]]],
-        #     dtype=np.float32)
-    else: # not using RPN
-        # Now, build the region of interest and label blobs
-        rois_blob = np.zeros((0, 5), dtype=np.float32)
-        labels_blob = np.zeros((0), dtype=np.float32)
-        bbox_targets_blob = np.zeros((0, 4 * num_classes), dtype=np.float32)
-        bbox_inside_blob = np.zeros(bbox_targets_blob.shape, dtype=np.float32)
-        # all_overlaps = []
-        for im_i in xrange(num_images):
-            labels, overlaps, im_rois, bbox_targets, bbox_inside_weights \
-                = _sample_rois(roidb[im_i], fg_rois_per_image, rois_per_image,
-                               num_classes)
+    # gt boxes 3d: (x, y, z, l, w, h, cls)
+    gt_boxes_3d = np.empty((len(gt_inds), 7), dtype=np.float32)
+    gt_boxes_3d[:, 0:6] = roidb[0]['boxes_3D'][gt_inds, :]
+    gt_boxes_3d[:, 6] = roidb[0]['gt_classes'][gt_inds]
+    blobs['gt_boxes_3d'] = gt_boxes_3d
+    # gt boxes corners: (x0, ... x7, y0, y1, ... y7, z0, ... z7, cls)
+    gt_boxes_corners = np.empty((len(gt_inds), 25), dtype=np.float32)
+    gt_boxes_corners[:, 0:24] = roidb[0]['boxes_corners'][gt_inds, :]
+    gt_boxes_corners[:, 24] = roidb[0]['gt_classes'][gt_inds]
+    blobs['gt_boxes_corners'] = gt_boxes_corners
 
-            # Add to RoIs blob
-            rois = _project_im_rois(im_rois, im_scales[im_i])
-            batch_ind = im_i * np.ones((rois.shape[0], 1))
-            rois_blob_this_image = np.hstack((batch_ind, rois))
-            rois_blob = np.vstack((rois_blob, rois_blob_this_image))
-
-            # Add to labels, bbox targets, and bbox loss blobs
-            labels_blob = np.hstack((labels_blob, labels))
-            bbox_targets_blob = np.vstack((bbox_targets_blob, bbox_targets))
-            bbox_inside_blob = np.vstack((bbox_inside_blob, bbox_inside_weights))
-            # all_overlaps = np.hstack((all_overlaps, overlaps))
-
-        # For debug visualizations
-        # _vis_minibatch(im_blob, rois_blob, labels_blob, all_overlaps)
-
-        blobs['rois'] = rois_blob
-        blobs['labels'] = labels_blob
-
-        if cfg.TRAIN.BBOX_REG:
-            blobs['bbox_targets'] = bbox_targets_blob
-            blobs['bbox_inside_weights'] = bbox_inside_blob
-            blobs['bbox_outside_weights'] = \
-                np.array(bbox_inside_blob > 0).astype(np.float32)
+    blobs['im_info'] = np.array(
+        [[lidar_bv_blob.shape[1], lidar_bv_blob.shape[2], im_scales[0]]],
+        dtype=np.float32)
+    # blobs['im_info'] = np.array(
+    #     [[im_blob.shape[2], im_blob.shape[3], im_scales[0]]],
+    #     dtype=np.float32)
 
     return blobs
 
@@ -163,8 +130,8 @@ def _get_image_blob(roidb, scale_inds):
     im_scales = [1]
     for i in xrange(num_images):
         im = cv2.imread(roidb[i]['image_path'])
-        if roidb[i]['flipped']:
-            im = im[:, ::-1, :]
+        # if roidb[i]['flipped']:
+        #     im = im[:, ::-1, :]
         # # target_size = cfg.TRAIN.SCALES[scale_inds[i]]
         # targets_size = 
         # im, im_scale = prep_im_for_blob(im, cfg.PIXEL_MEANS, target_size,

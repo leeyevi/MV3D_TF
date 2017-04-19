@@ -15,7 +15,7 @@ import cPickle
 from fast_rcnn.config import cfg
 import math
 from rpn_msr.generate_anchors import generate_anchors_bv
-from utils.transform import camera_to_lidar_cnr, lidar_to_corners_single, computeCorners3D, corners_to_bv_single, lidar_cnr_to_3d
+from utils.transform import camera_to_lidar_cnr, lidar_to_corners_single, computeCorners3D, lidar_cnr_to_bv_single, lidar_cnr_to_3d
 
 class kitti_mv3d(datasets.imdb):
     def __init__(self, image_set, kitti_path=None):
@@ -26,7 +26,7 @@ class kitti_mv3d(datasets.imdb):
                             else kitti_path
         # self._data_path = '$Faster-RCNN_TF/data/KITTI/object'
         self._data_path = os.path.join(self._kitti_path, 'object')
-        self._classes = ('__background__', 'Car')#, 'Pedestrian', 'Cyclist')
+        self._classes = ('__background__', 'Car', 'Pedestrian', 'Cyclist')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.png'
         self._lidar_ext = '.npy'
@@ -59,6 +59,20 @@ class kitti_mv3d(datasets.imdb):
         Return the absolute path to lidar i in the lidar sequence.
         """
         return self.lidar_path_from_index(self.image_index[i])
+
+    def calib_at(self, i):
+        """
+        Return the calib sequence.
+        """
+        index = str(i).zfill(6)
+        calib_ori =  self._load_kitti_calib(index)
+        calib = np.zeros((4, 12))
+        calib[0,:] = calib_ori['P2'].reshape(12)
+        calib[1,:] = calib_ori['P3'].reshape(12)
+        calib[2,:9] = calib_ori['R0'].reshape(9)
+        calib[3,:] = calib_ori['Tr_velo2cam'].reshape(12)
+
+        return calib
 
     def image_path_from_index(self, index):
         """
@@ -237,7 +251,7 @@ class kitti_mv3d(datasets.imdb):
             ry = float(obj[14])
 
             rys[ix] = ry
-            lwh[ix, :] = [l, h, w]
+            lwh[ix, :] = [l, w, h]
             alphas[ix] = alpha
             translation[ix, :] = [tx, ty, tz]
             boxes[ix, :] = [x1, y1, x2, y2]
@@ -250,7 +264,7 @@ class kitti_mv3d(datasets.imdb):
             # convert 8 corners(cam) to  lidar boxes3D
             boxes3D_lidar[ix, :] = lidar_cnr_to_3d(boxes3D_corners[ix, :], lwh[ix,:])
             # convert 8 corners(lidar) to lidar bird view
-            boxes_bv[ix, :] = corners_to_bv_single(boxes3D_corners[ix, :])
+            boxes_bv[ix, :] = lidar_cnr_to_bv_single(boxes3D_corners[ix, :])
             # boxes3D_corners[ix, :] = lidar_to_corners_single(boxes3D_lidar[ix, :])
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
@@ -280,6 +294,7 @@ class kitti_mv3d(datasets.imdb):
                 'lwh' : lwh,
                 'boxes' : boxes,
                 'boxes_bv' : boxes_bv,
+                'boxes_3D_cam' : boxes3D,
                 'boxes_3D' : boxes3D_lidar,
                 'boxes3D_cam_corners' : boxes3D_cam_cnr,
                 'boxes_corners' : boxes3D_corners,

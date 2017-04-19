@@ -38,6 +38,7 @@ def prepare_roidb(imdb):
         roidb[i]['lidar_bv_path'] = imdb.lidar_path_at(i)
         roidb[i]['width'] = sizes[1]#sizes[i][1]
         roidb[i]['height'] = sizes[0]#sizes[i][0]
+        roidb[i]['calib'] = imdb.calib_at(i)
         # print(imdb.image_path_at[i])
         # need gt_overlaps as a dense array for argmax
         gt_overlaps = roidb[i]['gt_overlaps'].toarray()
