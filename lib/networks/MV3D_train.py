@@ -6,7 +6,8 @@ from networks.network import Network
 #  anchor_scales = [8, 16, 32]
 n_classes = 4 # car, pedes, cyclist, dontcare
 _feat_stride = [4,]
-anchor_scales = [0.5, 1, 2] 
+#  anchor_scales = [0.5, 1, 2]
+anchor_scales = [1.0, 1.0]
 
 class MV3D_train(Network):
     def __init__(self, trainable=True):
@@ -24,8 +25,8 @@ class MV3D_train(Network):
                             'image_data':self.image_data,
                             'calib' : self.calib,
                             'im_info':self.im_info,
-                            'gt_boxes':self.gt_boxes, 
-                            'gt_boxes_bv':self.gt_boxes_bv, 
+                            'gt_boxes':self.gt_boxes,
+                            'gt_boxes_bv':self.gt_boxes_bv,
                             'gt_boxes_3d': self.gt_boxes_3d,
                             'gt_boxes_corners': self.gt_boxes_corners})
         self.trainable = trainable
@@ -84,7 +85,7 @@ class MV3D_train(Network):
         (self.feed('conv5_3')
              .deconv(shape=None, c_o=512, stride=2, ksize=3,  name='deconv_2x_1')
              .conv(3,3,512,1,1,name='rpn_conv/3x3')
-             .conv(1,1,len(anchor_scales)*3*2 ,1 , 1, padding='VALID', relu = False, name='rpn_cls_score'))
+             .conv(1,1,len(anchor_scales)*2*2 ,1 , 1, padding='VALID', relu = False, name='rpn_cls_score'))
 
         (self.feed('rpn_cls_score','gt_boxes_bv', 'gt_boxes_3d', 'im_info')
              .anchor_target_layer(_feat_stride, anchor_scales, name = 'rpn-data' )) # 4 downsample
@@ -93,7 +94,7 @@ class MV3D_train(Network):
         # ancho_num * xyzhlw
         # offset
         (self.feed('rpn_conv/3x3')
-             .conv(1,1,len(anchor_scales)*3*6, 1, 1, padding='VALID', relu = False, name='rpn_bbox_pred'))
+             .conv(1,1,len(anchor_scales)*2*6, 1, 1, padding='VALID', relu = False, name='rpn_bbox_pred'))
 
         #========= RoI Proposal ============
         # Lidar Bird View
@@ -102,14 +103,14 @@ class MV3D_train(Network):
              .softmax(name='rpn_cls_prob'))
 
         (self.feed('rpn_cls_prob')
-             .reshape_layer(len(anchor_scales)*3*2,name = 'rpn_cls_prob_reshape'))
+             .reshape_layer(len(anchor_scales)*2*2,name = 'rpn_cls_prob_reshape'))
 
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info', 'calib')
              .proposal_layer_3d(_feat_stride, 'TRAIN', name = 'rpn_rois'))
 
         (self.feed('rpn_rois', 'gt_boxes_bv', 'gt_boxes_3d', 'gt_boxes_corners', 'calib')
              .proposal_target_layer_3d(n_classes, name='roi_data_3d'))
-            # return 
+            # return
             # 1. rois: lidar_bv (nx4)
             # #3. rois: image (nx4)
             # 4. labels (nx1)
@@ -146,7 +147,7 @@ class MV3D_train(Network):
         #      .softmax(name='cls_prob'))
 
         # (self.feed('drop7')
-        #      .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)  
+        #      .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 
         # lidar_bv
         (self.feed('deconv_4x_1', 'roi_data_bv')
@@ -172,5 +173,5 @@ class MV3D_train(Network):
 
         (self.feed('drop7', 'drop7_2')
              .concat(axis=1, name='concat2')
-             .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)  
+             .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 

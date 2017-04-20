@@ -87,8 +87,8 @@ class SolverWrapper(object):
         """
         sigma2 = sigma * sigma
 
-        # print(bbox_pred.shape)
-        # print(bbox_targets.shape)
+        print(bbox_pred.shape)
+        print(bbox_targets.shape)
         diffs = tf.subtract(bbox_pred, bbox_targets)
 
         smooth_l1_sign = tf.cast(tf.less(tf.abs(diffs), 1.0 / sigma2), tf.float32)
@@ -153,10 +153,10 @@ class SolverWrapper(object):
 
         # iintialize variables
         sess.run(tf.global_variables_initializer())
-        # if self.pretrained_model is not None:
-        #     print ('Loading pretrained model '
-        #            'weights from {:s}').format(self.pretrained_model)
-        #     self.net.load(self.pretrained_model, sess, self.saver, True)
+        if self.pretrained_model is not None:
+           print ('Loading pretrained model '
+                  'weights from {:s}').format(self.pretrained_model)
+           self.net.load(self.pretrained_model, sess, self.saver, True)
 
         last_snapshot_iter = -1
         timer = Timer()
@@ -166,12 +166,12 @@ class SolverWrapper(object):
 
             # Make one SGD update
             feed_dict={self.net.image_data: blobs['image_data'],
-                        self.net.lidar_bv_data: blobs['lidar_bv_data'], 
+                        self.net.lidar_bv_data: blobs['lidar_bv_data'],
                        self.net.im_info: blobs['im_info'],
-                       self.net.keep_prob: 0.5, 
+                       self.net.keep_prob: 0.5,
                        self.net.gt_boxes: blobs['gt_boxes'],
                        self.net.gt_boxes_bv: blobs['gt_boxes_bv'],
-                       self.net.gt_boxes_3d: blobs['gt_boxes_3d'], 
+                       self.net.gt_boxes_3d: blobs['gt_boxes_3d'],
                        self.net.gt_boxes_corners: blobs['gt_boxes_corners'],
                        self.net.calib: blobs['calib']}
 

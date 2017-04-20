@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from utils.transform import corners_to_img
+from util.transform import projectToImage
 
 def drawBox3D(img, corners):
     
@@ -40,3 +41,11 @@ def show_cam_corners(test_image, cam_corners, calib):
         img_corners = projectToImage(cam_corners_i, calib['P2'])
         img = drawBox3D(test, img_corners)
     return img 
+
+def show_image_boxes(test_image, img_boxes):
+    test = np.copy(test_image)
+    num = len(img_boxes)
+    for n in range(num):
+        x1,y1,x2,y2 = img_boxes[n]
+        cv2.rectangle(test,(x1,y1), (x2,y2), (255,255,0), 2)
+    return test

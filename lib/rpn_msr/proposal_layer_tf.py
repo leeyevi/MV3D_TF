@@ -15,7 +15,7 @@ from utils.transform import bv_anchor_to_lidar, lidar_to_bv, lidar_to_bv_4, lida
 import pdb
 
 
-DEBUG = True
+DEBUG = False
 """
 Outputs object detection proposals by applying estimated bounding-box
 transformations to a set of regular boxes (called "anchors").
@@ -24,8 +24,8 @@ transformations to a set of regular boxes (called "anchors").
 # TODO : support image, lidar_bv, fv proposal
 # input
 #  rpn_bbox_pred (nx6)
-# return 
-# 1. rois: lidar_bv 
+# return
+# 1. rois: lidar_bv
 # 4. rois_3d
 def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, _feat_stride = [16,], anchor_scales=[2, 4, 8]):
     # Algorithm:
@@ -43,8 +43,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
 
     #layer_params = yaml.load(self.param_str_)
 
-    # _anchors = generate_anchors_bv()
-    _anchors = generate_anchors(scales=np.array(anchor_scales))
+    _anchors = generate_anchors_bv()
+    #  _anchors = generate_anchors(scales=np.array(anchor_scales))
     _num_anchors = _anchors.shape[0]
     rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
     rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
@@ -112,7 +112,7 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 6))
 
     # Same story for the scores:
-    # 
+    #
     # scores are (1, A, H, W) format
     # transpose to (1, H, W, A)
     # reshape to (1 * H * W * A, 1) where rows are ordered by (h, w, a)
@@ -126,9 +126,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     proposals_bv = lidar_to_bv_4(proposals_3d)
 
 
-    print "bbox_deltas: ", bbox_deltas[:10]
-    print "proposals_bv", proposals_bv[:10]
     if DEBUG:
+        print "bbox_deltas: ", bbox_deltas[:10]
         print "proposals number: "
         print "proposals_bv shape: ", proposals_bv.shape
         print "proposals_3d shape: ", proposals_3d.shape
@@ -166,12 +165,12 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     proposals_3d = proposals_3d[keep, :]
     scores = scores[keep]
 
-    print "proposals_bv", proposals_bv[:10]
-    print "scores: ", scores[:10]
     if DEBUG:
         print "proposals after nms"
         print "proposals_bv shape: ", proposals_bv.shape
         print "proposals_3d shape: ", proposals_3d.shape
+        print "proposals_bv", proposals_bv[:10]
+        print "scores: ", scores[:10]
     # Output rois blob
     # Our RPN implementation only supports a single input image, so all
     # batch inds are 0
@@ -251,7 +250,7 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
                         shift_x.ravel(), shift_y.ravel())).transpose()
 
     # Enumerate all shifted anchors:
-    # 
+    #
     # add A anchors (1, A, 4) to
     # cell K shifts (K, 1, 4) to get
     # shift anchors (K, A, 4)

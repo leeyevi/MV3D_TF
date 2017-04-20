@@ -14,7 +14,7 @@ from utils.cython_bbox import bbox_overlaps
 from utils.transform import lidar_3d_to_corners, lidar_to_bv, lidar_cnr_to_img
 import pdb
 
-DEBUG = True
+DEBUG = False
 
 TOP_X_MAX = 70.3
 TOP_X_MIN = 0
@@ -26,11 +26,11 @@ CAR_HEIGHT = 1.56
 
 
 # TODO : generate corners targets
-# receive: 
+# receive:
 # 1. rois: lidar_bv (nx4)
 # 4. rois_3d (nx6)
 # 5. gt_boxes_corners
-# return 
+# return
 # 1. rois: lidar_bv (nx4)
 # 3. rois: image (nx4)
 # 4. labels (nx1)
@@ -45,7 +45,7 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
     # (i.e., rpn.proposal_layer.ProposalLayer), or any other source
     # TODO(rbg): it's annoying that sometimes I have extra info before
     # and other times after box coordinates -- normalize to one format
-    # convert to lidar bv 
+    # convert to lidar bv
     # all_rois =   lidar_to_bv(rpn_rois_3d)
     all_rois = rpn_rois_bv
     # print "gt_boxes_bv: ", gt_boxes_bv
@@ -84,9 +84,9 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
         all_rois, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_rois_per_image,
         rois_per_image, _num_classes)
 
-    rois_img = lidar_cnr_to_img(rois_corners[:,1:25],
+    rois_img = lidar_cnr_to_img(rois_cnr[:,1:25],
                                 calib[3], calib[2,:9], calib[0])
-    rois_img = np.hstack((rois_bv[:,0], rois_img))
+    rois_img = np.hstack((rois_bv[:,0].reshape(-1, 1), rois_img))
 
 
     if DEBUG:
@@ -96,7 +96,6 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
         print 'rois_bv shape: ', rois_bv.shape
         print 'rois_3d shape: ', rois_3d.shape
         print 'bbox_targets shape: ', bbox_targets.shape
-        print 'bbox_inside_weights shape: ', bbox_inside_weights.shape
 
     rois_bv = rois_bv.reshape(-1, 5).astype(np.float32)
     rois_img = rois_img.reshape(-1, 5).astype(np.float32)
@@ -242,6 +241,9 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
     examples.
     """
     # overlaps: (rois x gt_boxes)
+    #  if DEBUG:
+        #  fake_bv = np.vstack((gt_boxes_bv, gt_boxes_bv, gt_boxes_bv, gt_boxes_bv))
+        #  all_rois_bv = fake_bv
 
     overlaps = bbox_overlaps(
         np.ascontiguousarray(all_rois_bv[:, 1:5], dtype=np.float),
@@ -253,6 +255,7 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
         print "overlaps: ", overlaps
         print "gt assignment: ",  gt_assignment
         print "max_overlaps: ", max_overlaps
+        print "all_rois_bv", all_rois_bv[:10, 1:5]
         print gt_boxes_bv
         print "labels: ", labels
 
@@ -296,7 +299,8 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
     if DEBUG:
         print "labels shape: ", labels.shape
         print "keep_inds: ", keep_inds
-        print "rois_bv shape:, ", all_rois_bv.shape
+        print "all_rois_bv shape:, ", all_rois_bv.shape
+        print rois_bv
         print "rois_3d shape:, ", rois_3d.shape
         print "rois_cnr shape:, ", rois_cnr.shape
 

@@ -74,15 +74,24 @@ def bv_anchor_to_lidar(anchors):
     """
     convert 2d anchors to 3d anchors
     """
-    ex_lengths = anchors[:, 2] - anchors[:, 0] + 1.0
-    ex_widths = anchors[:, 3] - anchors[:, 1] + 1.0
-    ex_ctr_x = anchors[:, 0] + 0.5 * ex_lengths
-    ex_ctr_y = anchors[:, 1] + 0.5 * ex_widths
+    ex_lengths = anchors[:, 3] - anchors[:, 1]
+    ex_widths = anchors[:, 2] - anchors[:, 0]
+#     ex_ctr_x = anchors[:, 0] + 0.5 * ex_widths
+#     ex_ctr_y = anchors[:, 1] + 0.5 * ex_lengths
+    ex_ctr_x = (anchors[:,0] + anchors[:,2]) / 2
+    ex_ctr_y = (anchors[:,1] + anchors[:,3]) / 2
 
-    ex_lengths = ex_lengths.reshape((anchors.shape[0], 1))
-    ex_widths = ex_widths.reshape((anchors.shape[0], 1))
+    ex_lengths = ex_lengths.reshape((anchors.shape[0], 1)) * RES
+    ex_widths = ex_widths.reshape((anchors.shape[0], 1)) * RES
     ex_ctr_x = ex_ctr_x.reshape((anchors.shape[0], 1))
     ex_ctr_y = ex_ctr_y.reshape((anchors.shape[0], 1))
+    
+    ex_ctr_x, ex_ctr_y = _bv_to_lidar_coords(ex_ctr_x, ex_ctr_y)
+    
+#     print ex_ctr_x, ex_ctr_y
+    # TODO : figure out why
+    ex_ctr_x -= 10
+    ex_ctr_y += 10
 
     ex_heights = np.ones((anchors.shape[0], 1), dtype=np.float32) * CAR_HEIGHT
     ex_ctr_z = np.ones((anchors.shape[0], 1), dtype=np.float32) * -(LIDAR_HEIGHT-CAR_HEIGHT/2) # 
@@ -393,6 +402,21 @@ def computeCorners3D(Boxex3D, ry):
 
     return corners_3D
 
+def corners_to_bv_single(corners):
+    pts_2D = np.zeros(4)
+    # min & max in lidar coords
+    xmin = np.min(corners[:8])
+    xmax = np.max(corners[:8])
+    ymin = np.min(corners[8:16])
+    ymax = np.max(corners[8:16])
+
+    # top left bottom right at lidar bird view coords
+    pts_2D = np.array([xmax, ymax, xmin, ymin])
+    
+    pts_2D[0], pts_2D[1] = _lidar_to_bv_coord(pts_2D[0], pts_2D[1])
+    pts_2D[2], pts_2D[3] = _lidar_to_bv_coord(pts_2D[2], pts_2D[3])
+
+    return pts_2D
 
 def lidar_cnr_to_img(corners, Tr, R0, P2):
     

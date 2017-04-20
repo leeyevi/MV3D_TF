@@ -7,7 +7,6 @@ from rpn_msr.proposal_layer_tf import proposal_layer_3d as proposal_layer_py_3d
 from rpn_msr.anchor_target_layer_tf import anchor_target_layer as anchor_target_layer_py
 from rpn_msr.proposal_target_layer_tf import proposal_target_layer as proposal_target_layer_py
 from rpn_msr.proposal_target_layer_tf import proposal_target_layer_3d as proposal_target_layer_py_3d
-from utils.transform import lidar_to_bv, lidar_to_image
 
 DEFAULT_PADDING = 'SAME'
 # TOP_X_MAX = 70.3
@@ -223,10 +222,15 @@ class Network(object):
         if isinstance(input[0], tuple):
             input[0] = input[0][0]
         with tf.variable_scope(name) as scope:
-            rpn_rois_bv, rpn_rois_3d = tf.py_func(proposal_layer_py_3d,[input[0],input[1],input[2], cfg_key, _feat_stride], [tf.float32, tf.float32])
+            rpn_rois_bv, rpn_rois_img, rpn_rois_3d = tf.py_func(proposal_layer_py_3d,[input[0],input[1],input[2], input[3], cfg_key, _feat_stride], [tf.float32, tf.float32, tf.float32])
             rpn_rois_bv = tf.reshape(rpn_rois_bv,[-1,5] , name = 'rpn_rois_bv')
+            rpn_rois_img = tf.reshape(rpn_rois_bv,[-1,5] , name = 'rpn_rois_img')
             rpn_rois_3d = tf.reshape(rpn_rois_3d,[-1,7] , name = 'rpn_rois_3d')
-        return rpn_rois_bv, rpn_rois_3d
+
+        #if cfg_key == 'TRAIN':
+        #    return rpn_rois_bv, rpn_rois_3d
+        #else :
+        return rpn_rois_bv, rpn_rois_img, rpn_rois_3d
 
 
     @layer
@@ -237,36 +241,31 @@ class Network(object):
         # gt_boxes_bv = lidar_to_top(input[1])
         with tf.variable_scope(name) as scope:
 
-            rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights = \
-            tf.py_func(anchor_target_layer_py,[input[0],input[1],input[2],input[3], _feat_stride, anchor_scales],[tf.float32,tf.float32,tf.float32,tf.float32])
+            rpn_labels,rpn_bbox_targets = \
+            tf.py_func(anchor_target_layer_py,[input[0],input[1],input[2],input[3], _feat_stride, anchor_scales],[tf.float32,tf.float32])
 
             rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels')
             rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets')
-            rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights')
-            rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights')
-            return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
+            return rpn_labels, rpn_bbox_targets
 
 
     @layer
     def proposal_target_layer_3d(self, input, classes, name):
         if isinstance(input[0], tuple):
             input_bv = input[0][0]
-            input_3d = input[0][1]
+            input_img = input[0][1]
+            input_3d = input[0][2]
         with tf.variable_scope(name) as scope:
             # print('dtype',input[0].dtype)
-            # TODO : add rois_img, rois_fv
-            rois_bv,labels,bbox_targets_corners,bbox_inside_weights_corners,bbox_outside_weights_corners = \
-            tf.py_func(proposal_target_layer_py_3d,[input_bv,input_3d,input[1],input[2],input[3],classes],[tf.float32,tf.int32,tf.float32,tf.float32,tf.float32])
+            rois_bv, rois_img, labels,bbox_targets_corners = \
+            tf.py_func(proposal_target_layer_py_3d,[input_bv,input_3d,input[1],input[2],input[3],input[4],classes],[tf.float32,tf.float32,tf.int32,tf.float32])
 
             rois_bv = tf.reshape(rois_bv,[-1,5] , name = 'rois_bv')
+            rois_img = tf.reshape(rois_img,[-1,5] , name = 'rois_img')
             labels = tf.convert_to_tensor(tf.cast(labels,tf.int32), name = 'labels')
             bbox_targets_corners = tf.convert_to_tensor(bbox_targets_corners, name = 'bbox_targets_corners')
-            bbox_inside_weights_corners = tf.convert_to_tensor(bbox_inside_weights_corners, name =
-                                                        'bbox_inside_weights_corners')
-            bbox_outside_weights_corners = tf.convert_to_tensor(bbox_outside_weights_corners, name =
-                                                          'bbox_outside_weights_corners')
 
-            return rois_bv, labels, bbox_targets_corners, bbox_inside_weights_corners, bbox_outside_weights_corners
+            return rois_bv, rois_img, labels, bbox_targets_corners
 
     @layer
     def proposal_target_layer(self, input, classes, name):
@@ -288,39 +287,36 @@ class Network(object):
     @layer
     def proposal_transform(self, input, name, target='bv'):
         """ transform 3d propasal to different view """
-        # 1. get calibration matirx : Tr_lidar_to cam
-        # 2. xyz in camera coord = Tr_lidar_to_cam * lidar
-        # 3. xy in image plane =
-        assert(target in ('bv', 'image', 'fv'))
-        # if isinstance(input, tuple):
-        #     input = input[0]
+
+        assert(target in ('bv', 'img', 'fv'))
+        if isinstance(input, tuple):
+            input_bv = input[0]
+            input_img = input[1]
+            
+        #print '++++++', input[0]
+        #print input[1]
 
         if target == 'bv':
 
             with tf.variable_scope(name) as scope:
                 # print('=====================\n')
+                #lidar_bv = tf.py_func(choose, [input_bv], [tf.float32])
+                #lidar_bv = tf.reshape(lidar_bv, [-1, 5], name='lidar_bv')
+                lidar_bv = input_bv
+                print "lidar_bv shape", lidar_bv
 
-                # print('transform input',input[0])
-                lidar_bv = tf.py_func(lidar_to_bv, [input[0]], [tf.float32])
-                lidar_bv = tf.reshape(lidar_bv, [-1, 5], name='lidar_bv')
-                # print('lidar_bv shape', lidar_bv.shape)
-                # print('\n=====================')
+            return lidar_bv
 
-            return lidar_bv, input[2]
+        elif target == 'img':
 
-        elif target == 'image':
-            # TODO
             with tf.variable_scope(name) as scope:
                 # print('=====================\n')
+                #image_proposal = tf.py_func(choose, [input_img], [tf.float32])
+                #image_proposal = tf.reshape(input_img, [-1, 5], name='image_proposal')
+                image_proposal = input_img
+                print "image shape:", image_proposal
 
-                # print('transform input',input[0])
-                image_proposal = tf.py_func(lidar_to_image, [input[0]], [tf.float32])
-                image_proposal = tf.reshape(image_proposal, [-1, 5], name='image_proposal')
-                # print('lidar_bv shape', lidar_bv.shape)
-                # print('\n=====================')
-
-            return image_proposal, input[2]
-
+            return image_proposal
 
         elif target == 'fv':
             # TODO
@@ -356,7 +352,7 @@ class Network(object):
 
     @layer
     def concat(self, inputs, axis, name):
-        return tf.concat(concat_dim=axis, values=inputs, name=name)
+        return tf.concat(values=inputs, axis=axis, name=name)
 
     # TODO
     @layer
@@ -404,57 +400,3 @@ class Network(object):
     @layer
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
-
-
-# def _projectToImage(pts_3D, P):
-
-#     """
-#     PROJECTTOIMAGE projects 3D points in given coordinate system in the image
-#     plane using the given projection matrix P.
-
-#     Usage: pts_2D = projectToImage(pts_3D, P)
-#     input: pts_3D: 3xn matrix
-#           P:      3x4 projection matrix
-#     output: pts_2D: 2xn matrix
-
-#     last edited on: 2012-02-27
-#     Philip Lenz - lenz@kit.edu
-#     """
-#     # project in image
-#     mat = np.vstack((pts_3D, np.ones((pts_3D.shape[1]))))
-
-#     pts_2D = np.dot(P, mat)
-#     # print(pts_2D)
-
-#     # scale projected points
-#     pts_2D[0,:] = pts_2D[0,:] / pts_2D[2,:]
-#     pts_2D[1,:] = pts_2D[1,:] / pts_2D[2,:]
-#     pts_2D = np.delete(pts_2D, 2, 0)
-#     # pts_2D[2,:] = np.zeros(())
-#     return pts_2D
-
-# def _lidar_to_bv_coord(x,y):
-#     X0, Xn = 0, int((TOP_X_MAX-TOP_X_MIN)//RES)+1
-#     Y0, Yn = 0, int((TOP_Y_MAX-TOP_Y_MIN)//RES)+1
-
-
-#     xx = Yn-(y-TOP_Y_MIN)//RES
-#     yy = Xn-(x-TOP_X_MIN)//RES
-
-#     return xx,yy
-
-# def _lidar_to_bv(rois_3d):
-
-#     # print('rois_3d',rois_3d.shape)
-#     rois = np.zeros((rois_3d.shape[0],5))
-#     rois[:, 0] = rois_3d[:, 0]
-
-#     rois[:, 1] = rois_3d[:, 1] + rois_3d[:, 4] * 0.5
-#     rois[:, 2] = rois_3d[:, 2] + rois_3d[:, 5] * 0.5
-#     rois[:, 3] = rois_3d[:, 1] - rois_3d[:, 4] * 0.5
-#     rois[:, 4] = rois_3d[:, 2] - rois_3d[:, 5] * 0.5
-
-#     rois[:, 1], rois[:, 2] = _lidar_to_bv_coord(rois[:, 1], rois[:, 2])
-#     rois[:, 3], rois[:, 4] = _lidar_to_bv_coord(rois[:, 3], rois[:, 4])
-
-#     return rois.astype(np.float32)
