@@ -1,9 +1,9 @@
 import numpy as np
 
-TOP_X_MAX = 70.3
+TOP_X_MAX = 40.
 TOP_X_MIN = 0
-TOP_Y_MIN = -40
-TOP_Y_MAX = 40
+TOP_Y_MIN = -20
+TOP_Y_MAX = 20
 RES = 0.1
 LIDAR_HEIGHT = 1.73
 CAR_HEIGHT = 1.56
@@ -85,16 +85,16 @@ def bv_anchor_to_lidar(anchors):
     ex_widths = ex_widths.reshape((anchors.shape[0], 1)) * RES
     ex_ctr_x = ex_ctr_x.reshape((anchors.shape[0], 1))
     ex_ctr_y = ex_ctr_y.reshape((anchors.shape[0], 1))
-    
+
     ex_ctr_x, ex_ctr_y = _bv_to_lidar_coords(ex_ctr_x, ex_ctr_y)
-    
+
 #     print ex_ctr_x, ex_ctr_y
     # TODO : figure out why
     ex_ctr_x -= 10
     ex_ctr_y += 10
 
     ex_heights = np.ones((anchors.shape[0], 1), dtype=np.float32) * CAR_HEIGHT
-    ex_ctr_z = np.ones((anchors.shape[0], 1), dtype=np.float32) * -(LIDAR_HEIGHT-CAR_HEIGHT/2) # 
+    ex_ctr_z = np.ones((anchors.shape[0], 1), dtype=np.float32) * -(LIDAR_HEIGHT-CAR_HEIGHT/2) #
 
     anchors_3d = np.hstack((ex_ctr_x, ex_ctr_y, ex_ctr_z, ex_lengths, ex_widths, ex_heights))
 
@@ -166,12 +166,12 @@ def cam_to_lidar_3d(pts_3D, Tr):
 
     R = np.linalg.inv(Tr[:, :3])
     T = np.zeros((3, 1))
-    T[0] = -Tr[1,3] 
+    T[0] = -Tr[1,3]
     T[1] = -Tr[2,3]
     T[2] = Tr[0,3]
     RT = np.hstack((R, T))
     points_lidar = np.dot(RT, points)
-    
+
     pts_3D_lidar = np.zeros((pts_3D.shape))
     pts_3D_lidar[:,:3] = points_lidar.transpose()
     pts_3D_lidar[:,3:6] = pts_3D[:,3:6]
@@ -188,7 +188,7 @@ def cam_to_lidar_3d_single(pts_3D,Tr):
 
     R = np.linalg.inv(Tr[:, :3])
     T = np.zeros((3, 1))
-    T[0] = -Tr[1,3] 
+    T[0] = -Tr[1,3]
     T[1] = -Tr[2,3]
     T[2] = Tr[0,3]
     RT = np.hstack((R, T))
@@ -234,7 +234,7 @@ def _bv_roi_to_3d(rpn_rois_bv):
 
 
 def lidar_to_corners_single(pts_3D):
-    """ 
+    """
     convert pts_3D_lidar (x, y, z, l, w, h) to
     8 corners (x0, ... x7, y0, ...y7, z0, ... z7)
 
@@ -258,7 +258,7 @@ def lidar_to_corners_single(pts_3D):
     return corners.reshape(-1).astype(np.float32)
 
 def lidar_3d_to_corners(pts_3D):
-    """ 
+    """
     convert pts_3D_lidar (x, y, z, l, w, h) to
     8 corners (x0, ... x7, y0, ...y7, z0, ... z7)
     """
@@ -344,7 +344,7 @@ def lidar_cnr_to_img_single(corners, Tr, R0, P2):
 
     if 24 in corners.shape:
         corners = corners.reshape((3, 8))
-        
+
     RO = np.vstack((R0, np.zeros(3)))
     corners = np.vstack((corners, np.zeros(8)))
 
@@ -354,7 +354,7 @@ def lidar_cnr_to_img_single(corners, Tr, R0, P2):
     return img_cor
 
 def lidar_cnr_to_img(corners, Tr, R0, P2):
-    
+
     img_boxes = np.zeros((corners.shape[0], 4))
 
     Tr = Tr.reshape((3, 4))
@@ -362,18 +362,18 @@ def lidar_cnr_to_img(corners, Tr, R0, P2):
     P2 = P2.reshape((3, 4))
 
     for i in range(corners.shape[0]):
-        
+
         img_cor = lidar_cnr_to_img_single(corners[i], Tr, R0, P2)
-        
+
         img_cor = img_cor / img_cor[2]
-        
+
         xmin = np.max((0, np.min(img_cor[0])))
         xmax = np.max(img_cor[0])
         ymin = np.max((0, np.min(img_cor[1])))
         ymax = np.max(img_cor[1])
- 
+
         img_boxes[i, :] = np.array([xmin, ymin, xmax, ymax])
-        
+
     return img_boxes.astype(np.int32)
 
 def computeCorners3D(Boxex3D, ry):
@@ -412,29 +412,29 @@ def corners_to_bv_single(corners):
 
     # top left bottom right at lidar bird view coords
     pts_2D = np.array([xmax, ymax, xmin, ymin])
-    
+
     pts_2D[0], pts_2D[1] = _lidar_to_bv_coord(pts_2D[0], pts_2D[1])
     pts_2D[2], pts_2D[3] = _lidar_to_bv_coord(pts_2D[2], pts_2D[3])
 
     return pts_2D
 
 def lidar_cnr_to_img(corners, Tr, R0, P2):
-    
+
     img_boxes = np.zeros((corners.shape[0], 4))
-    
+
     for i in range(corners.shape[0]):
-        
+
         img_cor = lidar_cnr_to_img_single(corners[i], Tr, R0, P2)
-        
+
         img_cor = img_cor / img_cor[2]
-        
+
         xmin = np.min(img_cor[0])
         xmax = np.max(img_cor[0])
         ymin = np.min(img_cor[1])
         ymax = np.max(img_cor[1])
- 
+
         img_boxes[i, :] = np.array([xmin, ymin, xmax, ymax])
-        
+
     return img_boxes.astype(np.int32)
 
 def camera_to_lidar_cnr(pts_3D, P):
@@ -443,7 +443,7 @@ def camera_to_lidar_cnr(pts_3D, P):
     """
     if pts_3D.shape[1] == 24:
         pts_3D = pts_3D.reshape((3, 8))
-        
+
     pts_3D = np.vstack((pts_3D, np.zeros(8)))
 
     assert pts_3D.shape == (4, 8)
@@ -451,7 +451,7 @@ def camera_to_lidar_cnr(pts_3D, P):
     R = np.linalg.inv(P[:, :3])
     # T = -P[:, 3].reshape((3, 1))
     T = np.zeros((3, 1))
-    T[0] = -P[1,3] 
+    T[0] = -P[1,3]
     T[1] = -P[2,3]
     T[2] = P[0,3]
     RT = np.hstack((R, T))
