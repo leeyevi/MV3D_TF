@@ -1,10 +1,10 @@
 import cv2
 import numpy as np
 from utils.transform import corners_to_img
-from util.transform import projectToImage
+from utils.transform import projectToImage
 
 def drawBox3D(img, corners):
-    
+
     # img = np.copy(img)
     corners = corners.astype(np.int32)
 
@@ -29,7 +29,7 @@ def drawBox3D(img, corners):
 def show_lidar_corners(test_image, lidar_corners, calib):
     test = np.copy(test_image)
     for i in range(lidar_corners.shape[0]):
-        img_corners = corners_to_img(lidar_corners[i], calib['Tr_velo2cam'], calib['R0'], calib['P2'])
+        img_corners = corners_to_img(lidar_corners[i], calib[3], calib[2], calib[0])
         img = drawBox3D(test, img_corners/img_corners[2,:])
     return img
 
@@ -38,9 +38,9 @@ def show_cam_corners(test_image, cam_corners, calib):
     for i in range(cam_corners.shape[0]):
         if cam_corners[i].shape[0] == 24:
             cam_corners_i = cam_corners[i].reshape((3, 8))
-        img_corners = projectToImage(cam_corners_i, calib['P2'])
+        img_corners = projectToImage(cam_corners_i, calib[0])
         img = drawBox3D(test, img_corners)
-    return img 
+    return img
 
 def show_image_boxes(test_image, img_boxes):
     test = np.copy(test_image)

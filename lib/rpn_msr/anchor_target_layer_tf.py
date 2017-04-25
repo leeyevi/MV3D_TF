@@ -29,15 +29,15 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
 
     if DEBUG:
         print 'anchors:'
-        print _anchors
+        print _anchors.shape
         print 'anchor shapes:'
         print np.hstack((
             _anchors[:, 2::4] - _anchors[:, 0::4],
             _anchors[:, 3::4] - _anchors[:, 1::4],
         ))
         _counts = cfg.EPS
-        _sums = np.zeros((1, 4))
-        _squared_sums = np.zeros((1, 4))
+        _sums = np.zeros((1, 6))
+        _squared_sums = np.zeros((1, 6))
         _fg_sum = 0
         _bg_sum = 0
         _count = 0
@@ -99,13 +99,13 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
     )[0]
 
     if DEBUG:
-        print 'total_anchors', total_anchors
-        print 'inds_inside', len(inds_inside)
+        print 'total_anchors: ', total_anchors
+        print 'inds_inside: ', len(inds_inside)
 
     # keep only inside anchors
     anchors = all_anchors[inds_inside, :]
     if DEBUG:
-        print 'anchors.shape', anchors.shape
+        print 'anchors.shape: ', anchors.shape
 
     # label: 1 is positive, 0 is negative, -1 is dont care
     labels = np.empty((len(inds_inside), ), dtype=np.float32)
@@ -155,11 +155,46 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
         #print "was %s inds, disabling %s, now %s inds" % (
             #len(bg_inds), len(disable_inds), np.sum(labels == 0))
 
-    bbox_targets = np.zeros((len(inds_inside), 6), dtype=np.float32)
-    # bbox_targets = _compute_targets(anchors, gt_boxes[argmax_overlaps, :])
+    # idx_label  = np.where(labels != -1)[0]
+    # idx_target = np.where(labels ==  1)[0]
+    # inds   = inds_inside[idx_label]
+    # labels = labels[idx_label]
+
+    # pos_anchors = anchors[idx_target]
+
+    # pos_inds = inds_inside[idx_target]
+    # inside_anchors = anchors[inds_inside]
+    # pos_gt_boxes_3d = (gt_boxes_3d[argmax_overlaps])[idx_target]
+    # if DEBUG:
+    #     print 'pos_gt_boxes_3d shape: ', pos_gt_boxes_3d.shape
+        #  print 'anchors shape', anchors.shape
+    #  bbox_targets = np.zeros((len(inds_inside), 6), dtype=np.float32)
+    #  anchors_3d = bv_anchor_to_lidar(anchors)
+    #  bbox_targets = _compute_targets_3d(anchors_3d, gt_boxes_3d[argmax_overlaps, :])
+
+
+    # bbox_targets = np.zeros((len(idx_target), 6), dtype=np.float32)
+    # bbox_targets = _compute_targets_3d(anchors, gt_boxes_3d[argmax_overlaps, :])
+    # anchors_3d = bv_anchor_to_lidar(pos_anchors)
+    # bbox_targets = _compute_targets_3d(anchors_3d, pos_gt_boxes_3d)
     anchors_3d = bv_anchor_to_lidar(anchors)
     bbox_targets = _compute_targets_3d(anchors_3d, gt_boxes_3d[argmax_overlaps, :])
 
+    if DEBUG:
+        _sums += bbox_targets[labels == 1, :].sum(axis=0)
+        _squared_sums += (bbox_targets[labels == 1, :] ** 2).sum(axis=0)
+        _counts += np.sum(labels == 1)
+        means = _sums / _counts
+        # stds = np.sqrt(_squared_sums / _counts - means ** 2)
+        print 'means:'
+        print means
+        # print 'stdevs:'
+        # print stds
+
+    if DEBUG:
+        print 'gt_boxes_3d: ', gt_boxes_3d[argmax_overlaps, :].shape
+        print 'labels shape before unmap: ', labels.shape
+        print 'targets shaoe before unmap: ', bbox_targets.shape
     # map up to original set of anchors
     labels = _unmap(labels, total_anchors, inds_inside, fill=-1)
     bbox_targets = _unmap(bbox_targets, total_anchors, inds_inside, fill=0)
@@ -173,20 +208,34 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
         _count += 1
         print 'rpn: num_positive avg', _fg_sum / _count
         print 'rpn: num_negative avg', _bg_sum / _count
+        #  print 'bbox targets: ', bbox_targets[fg_inds]
+        print 'fg inds: ', fg_inds
+        print 'label shape', labels.shape
+        print 'bbox_targets', bbox_targets.shape
+        #  print 'bbox 3d gt: ', gt_boxes_3d
 
     # labels
     #pdb.set_trace()
-    labels = labels.reshape((1, height, width, A)).transpose(0, 3, 1, 2)
-    labels = labels.reshape((1, 1, A * height, width))
+     # labels = labels[fg_inds]
+    # labels = labels.reshape((1, height, width, A))
+    #  labels = labels.reshape((1, height, width, A)).transpose(0, 3, 1, 2)
+    #  labels = labels.reshape((1, 1, A * height, width))
     rpn_labels = labels
 
     # bbox_targets
-    bbox_targets = bbox_targets \
-        .reshape((1, height, width, A * 6)).transpose(0, 3, 1, 2)
+     # bbox_targets = bbox_targets[fg_inds]
+    #  bbox_targets = bbox_targets \
+        #  .reshape((1, height, width, A * 6)).transpose(0, 3, 1, 2)
+
+    # bbox_targets = bbox_targets \
+    #     .reshape((1, height, width, A * 6))
 
     rpn_bbox_targets = bbox_targets
 
-    return rpn_labels,rpn_bbox_targets
+    if DEBUG:
+        print 'labels shape: ', labels.shape
+        print 'targets shape: ', bbox_targets.shape
+    return rpn_labels, rpn_bbox_targets
 
 
 

@@ -5,7 +5,8 @@ import numpy as np
 import cv2
 from utils.cython_nms import nms, nms_new
 from utils.boxes_grid import get_boxes_grid
-from utils.transform import lidar_to_corners, corners_to_bv
+from utils.transform import lidar_3d_to_corners, corners_to_bv, lidar_cnr_to_img_single, lidar_cnr_to_img
+from utils.draw import show_lidar_corners
 import cPickle
 import heapq
 from utils.blob import im_list_to_blob, lidar_list_to_blob
@@ -37,15 +38,15 @@ def _get_image_blob(im):
     processed_ims = []
     im_scale_factors = []
 
-    for target_size in cfg.TEST.SCALES:
-        im_scale = float(target_size) / float(im_size_min)
-        # Prevent the biggest axis from being more than MAX_SIZE
-        if np.round(im_scale * im_size_max) > cfg.TEST.MAX_SIZE:
-            im_scale = float(cfg.TEST.MAX_SIZE) / float(im_size_max)
-        im = cv2.resize(im_orig, None, None, fx=im_scale, fy=im_scale,
-                        interpolation=cv2.INTER_LINEAR)
-        im_scale_factors.append(im_scale)
-        processed_ims.append(im)
+    #  for target_size in cfg.TEST.SCALES:
+        #  im_scale = float(target_size) / float(im_size_min)
+        #  # Prevent the biggest axis from being more than MAX_SIZE
+        #  if np.round(im_scale * im_size_max) > cfg.TEST.MAX_SIZE:
+            #  im_scale = float(cfg.TEST.MAX_SIZE) / float(im_size_max)
+        #  im = cv2.resize(im_orig, None, None, fx=im_scale, fy=im_scale,
+                        #  interpolation=cv2.INTER_LINEAR)
+        #  im_scale_factors.append(im_scale)
+    processed_ims.append(im)
 
     # Create a blob to hold the input images
     blob = im_list_to_blob(processed_ims)
@@ -125,22 +126,11 @@ def _project_im_rois(im_rois, scales):
 
     return rois, levels
 
-def _get_blobs(im, rois):
+def _get_blobs(im,bv, rois):
     """Convert an image and RoIs within that image into network inputs."""
-    if cfg.TEST.HAS_RPN:
-        blobs = {'lidar_bv_data' : None, 'rois' : None}
-        blobs['lidar_bv_data'], im_scale_factors = _get_lidar_bv_blob(im)
-    else:
-        blobs = {'data' : None, 'rois' : None}
-        blobs['data'], im_scale_factors = _get_lidar_bv_blob(im)
-        if cfg.IS_MULTISCALE:
-            if cfg.IS_EXTRAPOLATING:
-                blobs['rois'] = _get_rois_blob(rois, cfg.TEST.SCALES)
-            else:
-                blobs['rois'] = _get_rois_blob(rois, cfg.TEST.SCALES_BASE)
-        else:
-            blobs['rois'] = _get_rois_blob(rois, cfg.TEST.SCALES_BASE)
-
+    blobs = {'lidar_bv_data' : None, 'rois' : None}
+    blobs['lidar_bv_data'], im_scale_factors = _get_lidar_bv_blob(bv)
+    blobs['image_data'], _  = _get_image_blob(im)
     return blobs, im_scale_factors
 
 def _clip_boxes(boxes, im_shape):
@@ -252,7 +242,7 @@ def bv_detect(sess, net, im, boxes=None):
     """Detect object classes in an lidar bv  given object proposals.
     Arguments:
         net (caffe.Net): Fast R-CNN network to use
-        bv (ndarray): lidar bv to test 
+        bv (ndarray): lidar bv to test
         boxes (ndarray): R x 4 array of object proposals
     Returns:
         scores (ndarray): R x K array of object class scores (K includes
@@ -304,6 +294,7 @@ def bv_detect(sess, net, im, boxes=None):
         boxes_cnr = lidar_to_corners(boxes_3d)
         boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
         pred_boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
+        print "boxes_cnr: ", boxes_cnr[0]
         print "pred_boxes_cnr: ", pred_boxes_cnr[0]
         # pred_boxes = _clip_boxes(pred_boxes, im.shape)
 
@@ -321,6 +312,87 @@ def bv_detect(sess, net, im, boxes=None):
         trace_file.write(trace.generate_chrome_trace_format(show_memory=False))
         trace_file.close()
 
+    return scores, pred_boxes_bv, pred_boxes_cnr
+
+def box_detect(sess, net, im, bv, calib,  boxes=None):
+    """Detect object classes in an lidar bv  given object proposals.
+    Arguments:
+        net (caffe.Net): Fast R-CNN network to use
+        bv (ndarray): lidar bv to test
+        boxes (ndarray): R x 4 array of object proposals
+    Returns:
+        scores (ndarray): R x K array of object class scores (K includes
+            background as object category 0)
+        boxes (ndarray): R x (4*K) array of predicted bounding boxes
+    """
+
+    blobs, im_scales = _get_blobs(im, bv, boxes)
+
+    blobs['calib'] = calib
+    bv_blob = blobs['lidar_bv_data']
+    blobs['im_info'] = np.array(
+        [[bv_blob.shape[1], bv_blob.shape[2], im_scales[0]]],
+        dtype=np.float32)
+    # forward pass
+    feed_dict={net.lidar_bv_data: blobs['lidar_bv_data'],
+               net.image_data: blobs['image_data'],
+               net.im_info: blobs['im_info'],
+               net.calib: blobs['calib'],
+               net.keep_prob: 1.0}
+
+    run_options = None
+    run_metadata = None
+    if cfg.TEST.DEBUG_TIMELINE:
+        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_metadata = tf.RunMetadata()
+
+    cls_score, cls_prob, bbox_pred_cnr, rois = sess.run([net.get_output('cls_score'),
+                                             net.get_output('cls_prob'),
+                                             net.get_output('bbox_pred'),
+                                             net.get_output('rois')],
+                                             feed_dict=feed_dict,
+                                             options=run_options,
+                                             run_metadata=run_metadata)
+
+    scores = cls_prob
+
+    #  print "scores: ", scores[:10]
+    #  print "cls :", cls_score[:10]
+    #  print "rois", len(rois)
+    #  print rois[1][:5]
+    #  print "bbox_pred_cnr: ", bbox_pred_cnr[0]
+    #  print ""
+
+
+    assert len(im_scales) == 1, "Only single-image batch implemented"
+    boxes_3d = rois[2][:, 1:7] / im_scales[0]
+
+    # Apply bounding-box regression deltas
+    box_deltas = bbox_pred_cnr
+    #  print 'boxes_3d', boxes_3d
+    boxes_cnr = lidar_3d_to_corners(boxes_3d)
+    #  boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
+    #  print boxes_cnr.shape
+    pred_boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
+    #  print "boxes_cnr: ", boxes_cnr[0]
+    #  print "pred_boxes_cnr: ", pred_boxes_cnr[0]
+    # pred_boxes = _clip_boxes(pred_boxes, im.shape)
+
+    #  preject corners to lidar_bv
+    pred_boxes_bv = corners_to_bv(pred_boxes_cnr)
+    #  pred_boxes_bv = np.hstack((pred_boxes_bv, pred_boxes_bv))
+    #  pred_boxes_bv = rois[0]
+    #  print pred_boxes_cnr.shape
+    #  print pred_boxes_bv.shape
+    #  pred_boxes_img = lidar_cnr_to_img(pred_boxes_cnr, calib[3], calib[2,:9], calib[0])
+
+    if cfg.TEST.DEBUG_TIMELINE:
+        trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+        trace_file = open(str(long(time.time() * 1000)) + '-test-timeline.ctf.json', 'w')
+        trace_file.write(trace.generate_chrome_trace_format(show_memory=False))
+        trace_file.close()
+
+    #  return scores, pred_boxes_bv, pred_boxes_img, pred_boxes_cnr
     return scores, pred_boxes_bv, pred_boxes_cnr
 
 def vis_detections(im, class_name, dets, thresh=0.8):
@@ -388,6 +460,8 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
     #    (x0-x7, y0-y7, z0-z7, score)
     all_boxes = [[[] for _ in xrange(num_images)]
                  for _ in xrange(imdb.num_classes)]
+    all_boxes_img = [[[] for _ in xrange(num_images)]
+                 for _ in xrange(imdb.num_classes)]
     all_boxes_cnr = [[[] for _ in xrange(num_images)]
                  for _ in xrange(imdb.num_classes)]
 
@@ -397,31 +471,43 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
 
     # with tf.variable_scope('deconv_2x_1'):
         # bar1 = tf.get_variable("bar", (2,3)) # create
-    # print [var for var in tf.global_variables()]
-    # deconv1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="deconv_2x_1")
-    # #print deconv1[0].eval(session = sess)
+    #  deconv1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv1_2")
+    #  print deconv1[0].eval(session = sess)
     # deconv2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="deconv_4x_1")
     # sess.run(tf.variables_initializer([deconv1[0], deconv1[1], deconv2[0], deconv2[1]], name='init'))
     # print deconv1[0].eval(session = sess)[0]
+    # conv5_3 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv5_3")[0]
+    # deconv1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="deconv_2x_1")[0]
+    # deconv2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="deconv_4x_1")[0]
+    # shape_conv5_3 = conv5_3.get_shape().as_list()
+    # shape1 = deconv1.get_shape().as_list()
+    # shape2 = deconv2.get_shape().as_list()
+    # print 'conv5_3 shape', shape_conv5_3
+    # print 'deconv_2x_1 shape', shape1
+    # print 'deconv_4x_1 shape', shape2
+
 
     for i in xrange(num_images):
+    # for i in xrange(1):
         # filter out any ground truth boxes
         if cfg.TEST.HAS_RPN:
             box_proposals = None
 
-        # im = cv2.imread(imdb.image_path_at(i))
         # _t['im_detect'].tic()
         # scores, boxes = im_detect(sess, net, im, box_proposals)
         # _t['im_detect'].toc()
 
+        im = cv2.imread(imdb.image_path_at(i))
         bv = np.load(imdb.lidar_path_at(i))
+        calib = imdb.calib_at(i)
 
         print "Inference: ", imdb.lidar_path_at(i)
-        print np.where(bv != 0)
+        # print np.where(bv != 0)
 
         _t['im_detect'].tic()
-        scores, boxes_bv, boxes_cnr = bv_detect(sess, net, bv, box_proposals)
+        scores, boxes_bv, boxes_cnr = box_detect(sess, net, im, bv, calib,  box_proposals)
         _t['im_detect'].toc()
+
 
         _t['misc'].tic()
         if vis:
@@ -430,8 +516,7 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
             plt.imshow(image)
 
         # skip j = 0, because it's the background class
-        # for j in xrange(1, imdb.num_classes):
-        for j in xrange(1, 2):
+        for j in xrange(1, imdb.num_classes):
             inds = np.where(scores[:, j] > thresh)[0]
             cls_scores = scores[inds, j]
             cls_boxes = boxes_bv[inds, j*4:(j+1)*4]
@@ -440,16 +525,24 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
                 .astype(np.float32, copy=False)
             cls_dets_cnr = np.hstack((cls_boxes_cnr, cls_scores[:, np.newaxis])) \
                 .astype(np.float32, copy=False)
-            # print "scores: ", scores[:,1]
+            print "scores: ", cls_scores[:10]
             # print "boxes_bv: ", boxes_bv
-            # print " cls_boxes", cls_boxes
-            # print "cls_dets : ", cls_dets.shape
+            print " cls_boxes", cls_boxes
+            print cls_boxes_cnr[:10]
+            print "cls_dets : ", cls_dets.shape
             keep = nms(cls_dets, cfg.TEST.NMS)
             cls_dets = cls_dets[keep, :]
             cls_dets_cnr = cls_dets_cnr[keep, :]
-            if vis:
-                vis_detections(image, imdb.classes[j], cls_dets)
+            # project to image
+            # cls_des_img = lidar_cnr_to_img_single(cls_dets_cnr, calib[3], calib[2], calib[0])
+            # if vis:
+            if np.any(cls_dets_cnr):
+                img = show_lidar_corners(im, cls_dets_cnr[:,:24], calib)
+                plt.imshow(img)
+                plt.show()
+                # vis_detections(image, imdb.classes[j], cls_dets_img)
             all_boxes[j][i] = cls_dets
+            # all_boxes_img[j][i] = cls_des_img
             all_boxes_cnr[j][i] = cls_dets_cnr
         if vis:
            plt.show()
@@ -462,6 +555,7 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
                 for j in xrange(1, imdb.num_classes):
                     keep = np.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
                     all_boxes[j][i] = all_boxes[j][i][keep, :]
+                    # all_boxes_img[j][i] = all_boxes_img[j][i][keep, :]
                     all_boxes_cnr[j][i] = all_boxes_cnr[j][i][keep, :]
         _t['misc'].toc()
 

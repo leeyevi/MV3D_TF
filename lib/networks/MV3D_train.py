@@ -121,11 +121,11 @@ class MV3D_train(Network):
         (self.feed('roi_data_3d')
              .proposal_transform(target='bv', name='roi_data_bv'))
 
-        (self.feed('conv5_3')
-              .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
+        # (self.feed('conv5_3')
+        #       .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
 
-        (self.feed('conv5_3_2')
-              .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
+        # (self.feed('conv5_3_2')
+        #       .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
 
         #========= RoI Proposal ============
 
@@ -137,41 +137,54 @@ class MV3D_train(Network):
         # (self.feed('conv5_3', 'roi_data_1')
 
         # lidar bv
-        # (self.feed('deconv_4x_1', 'roi_data_3d')
-        #      .roi_pool(7, 7, 1.0/2, name='pool_5')
-        #      .fc(4096, name='fc6')
-        #      .dropout(0.5, name='drop6')
-        #      .fc(4096, name='fc7')
-        #      .dropout(0.5, name='drop7')
-        #      .fc(n_classes, relu=False, name='cls_score')
-        #      .softmax(name='cls_prob'))
+        #  (self.feed('deconv_4x_1', 'roi_data_bv')
+            #  .roi_pool(7, 7, 1.0/2, name='pool_5')
+            #  .fc(4096, name='fc6')
+            #  .dropout(0.5, name='drop6')
+            #  .fc(4096, name='fc7')
+            #  .dropout(0.5, name='drop7')
+            #  .fc(n_classes, relu=False, name='cls_score')
+            #  .softmax(name='cls_prob'))
 
-        # (self.feed('drop7')
-        #      .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
+        #  (self.feed('drop7')
+            #  .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 
         # lidar_bv
-        (self.feed('deconv_4x_1', 'roi_data_bv')
+        # (self.feed('deconv_4x_1', 'roi_data_bv')
+        (self.feed('conv5_3', 'roi_data_bv')
              .roi_pool(7, 7, 1.0/2, name='pool_5')
-             .fc(2048, name='fc6')
-             .dropout(0.5, name='drop6')
-             .fc(2048, name='fc7')
-             .dropout(0.5, name='drop7'))
+             .fc(2048, name='fc6_1')
+             .dropout(0.5, name='drop6'))
+             #  .fc(2048, name='fc7_1')
+             #  .dropout(0.5, name='drop7'))
 
         # image
-        (self.feed('deconv_2x_2', 'roi_data_img')
+        # (self.feed('deconv_2x_2', 'roi_data_img')
+        (self.feed('conv5_3', 'roi_data_img')
              .roi_pool(7, 7, 1.0/4, name='pool_5')
              .fc(2048, name='fc6_2')
-             .dropout(0.5, name='drop6')
-             .fc(2048, name='fc7_2')
-             .dropout(0.5, name='drop7_2'))
+             .dropout(0.5, name='drop6_1'))
+             #  .fc(2048, name='fc7_2')
+             #  .dropout(0.5, name='drop7_2'))
 
         # fusion
-        (self.feed('drop7', 'drop7_2')
+        (self.feed('drop6', 'drop6_1')
              .concat(axis=1, name='concat1')
+             .fc(4096, name='fc7')
+             .dropout(0.5, name='drop7')
              .fc(n_classes, relu=False, name='cls_score')
              .softmax(name='cls_prob'))
 
-        (self.feed('drop7', 'drop7_2')
-             .concat(axis=1, name='concat2')
+        (self.feed('drop7')
              .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
+
+        # fusion
+        #  (self.feed('drop7', 'drop7_2')
+             #  .concat(axis=1, name='concat1')
+             #  .fc(n_classes, relu=False, name='cls_score')
+             #  .softmax(name='cls_prob'))
+
+        #  (self.feed('drop7', 'drop7_2')
+             #  .concat(axis=1, name='concat2')
+             #  .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 

@@ -14,16 +14,7 @@ from utils.cython_bbox import bbox_overlaps
 from utils.transform import lidar_3d_to_corners, lidar_to_bv, lidar_cnr_to_img
 import pdb
 
-DEBUG = False
-
-TOP_X_MAX = 70.3
-TOP_X_MIN = 0
-TOP_Y_MIN = -40
-TOP_Y_MAX = 40
-RES = 0.1
-LIDAR_HEIGHT = 1.73
-CAR_HEIGHT = 1.56
-
+DEBUG = True
 
 # TODO : generate corners targets
 # receive:
@@ -51,9 +42,9 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
     # print "gt_boxes_bv: ", gt_boxes_bv
     if DEBUG:
         print "gt_boxes_bv: ", gt_boxes_bv, gt_boxes_bv.shape
-        print "gt_boxes_bv: ", gt_boxes_bv[:, :-1]
-        print "gt_boxes_3d: ", gt_boxes_3d, gt_boxes_3d.shape
-        print "gt_boxes_3d: ", gt_boxes_3d[:, :-1]
+        # print "gt_boxes_bv: ", gt_boxes_bv[:, :-1]
+        # print "gt_boxes_3d: ", gt_boxes_3d, gt_boxes_3d.shape
+        # print "gt_boxes_3d: ", gt_boxes_3d[:, :-1]
     # Include ground-truth boxes in the set of candidate rois
     zeros = np.zeros((gt_boxes_bv.shape[0], 1), dtype=gt_boxes_bv.dtype)
     all_rois = np.vstack(
@@ -85,7 +76,7 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
         rois_per_image, _num_classes)
 
     rois_img = lidar_cnr_to_img(rois_cnr[:,1:25],
-                                calib[3], calib[2,:9], calib[0])
+                                calib[3], calib[2], calib[0])
     rois_img = np.hstack((rois_bv[:,0].reshape(-1, 1), rois_img))
 
 
@@ -99,11 +90,11 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
 
     rois_bv = rois_bv.reshape(-1, 5).astype(np.float32)
     rois_img = rois_img.reshape(-1, 5).astype(np.float32)
-    # rois_3d = rois.reshape(-1,7).astype(np.float32)
+    rois_3d = rois_3d.reshape(-1,7).astype(np.float32)
     labels = labels.reshape(-1,1).astype(np.int32)
     bbox_targets = bbox_targets.reshape(-1,_num_classes*24).astype(np.float32)
 
-    return rois_bv, rois_img, labels, bbox_targets
+    return rois_bv, rois_img, labels, bbox_targets, rois_3d
 
 
 def proposal_target_layer(rpn_rois, gt_boxes,_num_classes):
@@ -241,9 +232,6 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
     examples.
     """
     # overlaps: (rois x gt_boxes)
-    #  if DEBUG:
-        #  fake_bv = np.vstack((gt_boxes_bv, gt_boxes_bv, gt_boxes_bv, gt_boxes_bv))
-        #  all_rois_bv = fake_bv
 
     overlaps = bbox_overlaps(
         np.ascontiguousarray(all_rois_bv[:, 1:5], dtype=np.float),
@@ -252,12 +240,12 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
     max_overlaps = overlaps.max(axis=1)
     labels = gt_boxes_bv[gt_assignment, 4]
     if DEBUG:
-        print "overlaps: ", overlaps
-        print "gt assignment: ",  gt_assignment
-        print "max_overlaps: ", max_overlaps
-        print "all_rois_bv", all_rois_bv[:10, 1:5]
+        print "overlaps: ", overlaps.shape
+        print "gt assignment: ",  gt_assignment.shape
+        print "max_overlaps: ", max_overlaps.shape
+        # print "all_rois_bv", all_rois_bv[:10, 1:5]
         print gt_boxes_bv
-        print "labels: ", labels
+        print "labels: ", labels.shape
 
     # Select foreground RoIs as those with >= FG_THRESH overlap
     fg_inds = np.where(max_overlaps >= cfg.TRAIN.FG_THRESH)[0]
@@ -300,7 +288,7 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
         print "labels shape: ", labels.shape
         print "keep_inds: ", keep_inds
         print "all_rois_bv shape:, ", all_rois_bv.shape
-        print rois_bv
+        # print rois_bv
         print "rois_3d shape:, ", rois_3d.shape
         print "rois_cnr shape:, ", rois_cnr.shape
 

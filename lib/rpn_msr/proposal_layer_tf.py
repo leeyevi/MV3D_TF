@@ -11,7 +11,7 @@ from fast_rcnn.config import cfg
 from generate_anchors import generate_anchors_bv, generate_anchors
 from fast_rcnn.bbox_transform import bbox_transform_inv, clip_boxes, bbox_transform_inv_3d
 from fast_rcnn.nms_wrapper import nms
-from utils.transform import bv_anchor_to_lidar, lidar_to_bv, lidar_to_bv_4, lidar_3d_to_corners, lidar_cnr_to_img
+from utils.transform import bv_anchor_to_lidar, lidar_to_bv, lidar_3d_to_bv, lidar_3d_to_corners, lidar_cnr_to_img
 import pdb
 
 
@@ -46,8 +46,13 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     _anchors = generate_anchors_bv()
     #  _anchors = generate_anchors(scales=np.array(anchor_scales))
     _num_anchors = _anchors.shape[0]
-    rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
-    rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
+
+    # print 'rpn_cls_prob_reshape: ', rpn_cls_prob_reshape[:, :, :, _num_anchors:]
+    # print 'rpn_bbox_pred: ', rpn_bbox_pred[]
+
+    # rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
+    # rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
+
     #rpn_cls_prob_reshape = np.transpose(np.reshape(rpn_cls_prob_reshape,[1,rpn_cls_prob_reshape.shape[0],rpn_cls_prob_reshape.shape[1],rpn_cls_prob_reshape.shape[2]]),[0,3,2,1])
     #rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,2,1])
     im_info = im_info[0]
@@ -69,7 +74,7 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
 
     # the first set of _num_anchors channels are bg probs
     # the second set are the fg probs, which we want
-    scores = rpn_cls_prob_reshape[:, _num_anchors:, :, :]
+    scores = rpn_cls_prob_reshape[:, :, :, _num_anchors:]
     bbox_deltas = rpn_bbox_pred
     #im_info = bottom[2].data[0, :]
 
@@ -78,7 +83,7 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         print 'scale: {}'.format(im_info[2])
 
     # 1. Generate proposals from bbox deltas and shifted anchors
-    height, width = scores.shape[-2:]
+    height, width = scores.shape[1:3]
 
     if DEBUG:
         print 'score map size: {}'.format(scores.shape)
@@ -109,26 +114,32 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     # transpose to (1, H, W, 4 * A)
     # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
     # in slowest to fastest order
-    bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 6))
+    #  bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 6))
+    bbox_deltas = bbox_deltas.reshape((-1, 6))
 
     # Same story for the scores:
     #
     # scores are (1, A, H, W) format
     # transpose to (1, H, W, A)
     # reshape to (1 * H * W * A, 1) where rows are ordered by (h, w, a)
-    scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
+    #  scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
+    scores = scores.reshape((-1, 1))
 
     # convert anchors bv to anchors_3d
     anchors_3d = bv_anchor_to_lidar(anchors)
     # Convert anchors into proposals via bbox transformations
     proposals_3d = bbox_transform_inv_3d(anchors_3d, bbox_deltas)
     # convert back to lidar_bv
-    proposals_bv = lidar_to_bv_4(proposals_3d)
+    proposals_bv = lidar_3d_to_bv(proposals_3d)
+
+    lidar_corners = lidar_3d_to_corners(proposals_3d)
+    proposals_img = lidar_cnr_to_img(lidar_corners,
+                                calib[3], calib[2], calib[0])
 
 
     if DEBUG:
         print "bbox_deltas: ", bbox_deltas[:10]
-        print "proposals number: "
+        print "proposals number: ", proposals_3d[:10]
         print "proposals_bv shape: ", proposals_bv.shape
         print "proposals_3d shape: ", proposals_3d.shape
 
@@ -140,12 +151,22 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     keep = _filter_boxes(proposals_bv, min_size * im_info[2])
     proposals_bv = proposals_bv[keep, :]
     proposals_3d = proposals_3d[keep, :]
+    proposals_img = proposals_img[keep, :]
     scores = scores[keep]
+
+    # TODO: pass real image_info
+    keep = _filter_img_boxes(proposals_img, [375, 1242])
+    proposals_bv = proposals_bv[keep, :]
+    proposals_3d = proposals_3d[keep, :]
+    proposals_img = proposals_img[keep, :]
+    scores = scores[keep]
+
 
     if DEBUG:
         print "proposals after clip"
         print "proposals_bv shape: ", proposals_bv.shape
         print "proposals_3d shape: ", proposals_3d.shape
+        print "proposals_img shape: ", proposals_img.shape
     # 4. sort all (proposal, score) pairs by score from highest to lowest
     # 5. take top pre_nms_topN (e.g. 6000)
     order = scores.ravel().argsort()[::-1]
@@ -153,6 +174,7 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         order = order[:pre_nms_topN]
     proposals_bv = proposals_bv[order, :]
     proposals_3d = proposals_3d[order, :]
+    proposals_img = proposals_img[order, :]
     scores = scores[order]
 
     # 6. apply nms (e.g. threshold = 0.7)
@@ -163,6 +185,7 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         keep = keep[:post_nms_topN]
     proposals_bv = proposals_bv[keep, :]
     proposals_3d = proposals_3d[keep, :]
+    proposals_img = proposals_img[keep, :]
     scores = scores[keep]
 
     if DEBUG:
@@ -170,14 +193,11 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         print "proposals_bv shape: ", proposals_bv.shape
         print "proposals_3d shape: ", proposals_3d.shape
         print "proposals_bv", proposals_bv[:10]
+        print "proposals_img", proposals_img[:10]
         print "scores: ", scores[:10]
     # Output rois blob
     # Our RPN implementation only supports a single input image, so all
     # batch inds are 0
-    lidar_corners = lidar_3d_to_corners(proposals_3d)
-    proposals_img = lidar_cnr_to_img(lidar_corners,
-                                calib[3], calib[2,:9], calib[0])
-
     batch_inds = np.zeros((proposals_bv.shape[0], 1), dtype=np.float32)
     blob_bv = np.hstack((batch_inds, proposals_bv.astype(np.float32, copy=False)))
     blob_img = np.hstack((batch_inds, proposals_img.astype(np.float32, copy=False)))
@@ -187,8 +207,10 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         print "blob shape ====================:"
         print blob_bv.shape
         print blob_img.shape
-        print blob_bv[:10]
-        print blob_img[:10]
+        # print '3d', blob_3d[:10]
+        # print lidar_corners[:10]
+        # print 'bv', blob_bv[:10]
+        # print 'img', blob_img[:10]
 
     return blob_bv, blob_img, blob_3d
 
@@ -329,4 +351,15 @@ def _filter_boxes(boxes, min_size):
     ws = boxes[:, 2] - boxes[:, 0] + 1
     hs = boxes[:, 3] - boxes[:, 1] + 1
     keep = np.where((ws >= min_size) & (hs >= min_size))[0]
+    return keep
+
+def _filter_img_boxes(boxes, im_info):
+    """Remove all boxes with any side smaller than min_size."""
+    padding = 50
+    w_min = -padding
+    w_max = im_info[1] + padding
+    h_min = -padding
+    h_max = im_info[0] + padding
+    keep = np.where((w_min <= boxes[:,0]) & (boxes[:,2] <= w_max) & (h_min <= boxes[:,1]) &
+                    (boxes[:,3] <= h_max))[0]
     return keep
