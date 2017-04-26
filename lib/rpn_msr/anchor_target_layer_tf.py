@@ -16,7 +16,7 @@ from fast_rcnn.bbox_transform import bbox_transform, bbox_transform_3d
 from utils.transform import bv_anchor_to_lidar
 import pdb
 
-DEBUG = False
+DEBUG = True
 
 def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_stride = [16,], anchor_scales = [8, 16, 32]):
     """
@@ -125,12 +125,24 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
 
     if not cfg.TRAIN.RPN_CLOBBER_POSITIVES:
         # assign bg labels first so that positive labels can clobber them
-        labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
+        # print max_overlaps.shape
+        # print overlaps.shape
+        # print 'argmax : ', np.where(np.logical_and(0 < max_overlaps, max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP) != False)
+        # print max_overlaps[np.where(np.logical_and(0 < max_overlaps, max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP) != False)]
+        # print 'argmax:', np.where(((max_overlaps > 0) & np.where(max_overlaps<0.5)))
+        # labels[ (max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP) & ( 0 < max_overlaps)] = 0
+
+        # hard negative for proposal_target_layer
+        hard_negative = np.logical_and(0 < max_overlaps, max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP)
+        labels[hard_negative] = 0
 
     # fg label: for each gt, anchor with highest overlap
     labels[gt_argmax_overlaps] = 1
 
+    # random sample 
+
     # fg label: above threshold IOU
+    # print np.where(max_overlaps >= cfg.TRAIN.RPN_POSITIVE_OVERLAP)
     labels[max_overlaps >= cfg.TRAIN.RPN_POSITIVE_OVERLAP] = 1
 
     if cfg.TRAIN.RPN_CLOBBER_POSITIVES:
@@ -152,6 +164,8 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
         disable_inds = npr.choice(
             bg_inds, size=(len(bg_inds) - num_bg), replace=False)
         labels[disable_inds] = -1
+
+
         #print "was %s inds, disabling %s, now %s inds" % (
             #len(bg_inds), len(disable_inds), np.sum(labels == 0))
 
@@ -180,16 +194,58 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
     anchors_3d = bv_anchor_to_lidar(anchors)
     bbox_targets = _compute_targets_3d(anchors_3d, gt_boxes_3d[argmax_overlaps, :])
 
+
+    # print 'labels = 0:, ', np.where(labels == 0)
+    all_inds = np.where(labels != -1)
+    labels_new = labels[all_inds]
+    zeros = np.zeros((labels_new.shape[0], 1), dtype=np.float32)
+    anchors =  np.hstack((zeros, anchors[all_inds])).astype(np.float32)
+    anchors_3d =  np.hstack((zeros, anchors_3d[all_inds])).astype(np.float32)
+
+
+    labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
+        # subsample negative labels if we have too many
+    num_bg = cfg.TRAIN.RPN_BATCHSIZE - np.sum(labels == 1)
+    bg_inds = np.where(labels == 0)[0]
+    if len(bg_inds) > num_bg:
+        disable_inds = npr.choice(
+            bg_inds, size=(len(bg_inds) - num_bg), replace=False)
+        labels[disable_inds] = -1
+    # labels[hard_negative] = -1
+    # # subsample negative labels if we have too many
+    # num_bg = cfg.TRAIN.RPN_BATCHSIZE - np.sum(labels == 1)
+    # bg_inds = np.where(labels != 1)[0]
+    # # print len(bg_inds)
+    # if len(bg_inds) > num_bg:
+    #     disable_inds = npr.choice(
+    #         bg_inds, size=(num_bg), replace=False)
+    #     labels[disable_inds] = 0
+
+    # all_inds = np.where(labels != -1)
+    # labels_new = labels[all_inds]
+    # zeros = np.zeros((labels_new.shape[0], 1), dtype=np.float32)
+    # # print zeros.shape
+    # # print len(all_inds)
+    # anchors =  np.hstack((zeros, anchors[all_inds])).astype(np.float32)
+    # anchors_3d =  np.hstack((zeros, anchors_3d[all_inds])).astype(np.float32)
+
+
+    # bg_inds = np.where(hard_negative == True)[0]
+    # disable_inds = npr.choice(
+    #         bg_inds, size=(len(bg_inds)/2.), replace=False)
+    # labels[disable_inds] = -1
+
+
     if DEBUG:
         _sums += bbox_targets[labels == 1, :].sum(axis=0)
         _squared_sums += (bbox_targets[labels == 1, :] ** 2).sum(axis=0)
         _counts += np.sum(labels == 1)
         means = _sums / _counts
-        # stds = np.sqrt(_squared_sums / _counts - means ** 2)
+        stds = np.sqrt(_squared_sums / _counts - means ** 2)
         print 'means:'
         print means
-        # print 'stdevs:'
-        # print stds
+        print 'stdevs:'
+        print stds
 
     if DEBUG:
         print 'gt_boxes_3d: ', gt_boxes_3d[argmax_overlaps, :].shape
@@ -235,7 +291,9 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
     if DEBUG:
         print 'labels shape: ', labels.shape
         print 'targets shape: ', bbox_targets.shape
-    return rpn_labels, rpn_bbox_targets
+
+
+    return rpn_labels, rpn_bbox_targets, anchors, anchors_3d
 
 
 

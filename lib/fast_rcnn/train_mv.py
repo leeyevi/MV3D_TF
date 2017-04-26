@@ -22,6 +22,7 @@ import time
 # DEBUG = True
 DEBUG = False
 vis = True
+# vis = False
 
 class SolverWrapper(object):
     """A simple wrapper around Caffe's solver.
@@ -116,7 +117,9 @@ class SolverWrapper(object):
         rpn_label = tf.reshape(self.net.get_output('rpn-data')[0],[-1])
 
         rpn_keep = tf.where(tf.not_equal(rpn_label,-1))
+        # only regression positive anchors
         rpn_bbox_keep = tf.where(tf.equal(rpn_label, 1))
+
         rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_keep),[-1,2])
         # rpn_cls_score = tf.reshape(rpn_cls_score, [-1,2])
         rpn_label = tf.reshape(tf.gather(rpn_label, rpn_keep),[-1])
@@ -128,7 +131,7 @@ class SolverWrapper(object):
         #  rpn_bbox_targets = tf.transpose(self.net.get_output('rpn-data')[1],[0,2,3,1])
         rpn_bbox_targets = self.net.get_output('rpn-data')[1]
 
-        rpn_rois = self.net.get_output('rpn_rois')
+        # rpn_rois = self.net.get_output('rpn_rois')
 
 
         rpn_bbox_pred = tf.reshape(tf.gather(tf.reshape(rpn_bbox_pred, [-1, 6]), rpn_bbox_keep),[-1, 6]) #
@@ -141,15 +144,12 @@ class SolverWrapper(object):
         #  rpn_loss_box = tf.multiply(tf.reduce_mean(tf.reduce_sum(rpn_smooth_l1, reduction_indices=[1, 2, 3])), 1)
         rpn_loss_box = tf.multiply(tf.reduce_mean(tf.reduce_sum(rpn_smooth_l1,
                                                                 reduction_indices=[1])),
-                                   10.0)
+                                   1.0)
 
         # R-CNN
         # classification loss
         cls_score = self.net.get_output('cls_score')
         label = tf.reshape(self.net.get_output('roi_data_3d')[2],[-1])
-        # print('label',label.shape)
-        # print('cla_score_shape',cls_score.shape)
-        # print(label.dtype)
         cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=label))
 
         # bounding box regression L1 loss
@@ -158,7 +158,7 @@ class SolverWrapper(object):
 
         smooth_l1 = self._modified_smooth_l1(3.0, bbox_pred, bbox_targets)
         loss_box = tf.multiply(tf.reduce_mean(tf.reduce_sum(smooth_l1, reduction_indices=[1])),
-                               1.0)
+                               0.1)
 
         # final loss
         loss = cross_entropy + loss_box + rpn_cross_entropy +  rpn_loss_box
@@ -169,9 +169,9 @@ class SolverWrapper(object):
         #                                 cfg.TRAIN.STEPSIZE, 0.1, staircase=True)
         #  momentum = cfg.TRAIN.MOMENTUM
         #  train_op = tf.train.MomentumOptimizer(lr, momentum).minimize(loss, global_step=global_step)
-        lr = 0.001
-        train_op = tf.train.GradientDescentOptimizer(lr).minimize(loss)
-        # train_op = tf.train.AdamOptimizer(lr).minimize(loss)
+        lr = 0.0001
+        # train_op = tf.train.GradientDescentOptimizer(lr).minimize(loss)
+        train_op = tf.train.AdamOptimizer(lr).minimize(loss)
 
 
         # iintialize variables
@@ -208,7 +208,7 @@ class SolverWrapper(object):
             timer.tic()
 
 
-            bbox_pred_out,rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, _ = sess.run([bbox_pred, rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, train_op],
+            rpn_bbox_pred_out,rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, _ = sess.run([rpn_bbox_pred, rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, train_op],
                 feed_dict=feed_dict,
                 options=run_options,
                 run_metadata=run_metadata)
@@ -230,14 +230,17 @@ class SolverWrapper(object):
                         (iter+1, max_iters, rpn_loss_cls_value +  rpn_loss_box_value + loss_cls_value + loss_box_value ,rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, lr)
                 print 'speed: {:.3f}s / iter'.format(timer.average_time)
 
+            if (iter+1) % (10) == 0:
                 if vis:
-                    cls_prob, bbox_pred_cnr, rois, rcnn_roi = sess.run([
+                    cls_prob, bbox_pred_cnr, rpn_data, rpn_rois, rcnn_roi = sess.run([
                                              self.net.get_output('cls_prob'),
                                              self.net.get_output('bbox_pred'),
+                                             self.net.get_output('rpn-data'),
                                              self.net.get_output('rpn_rois'),
                                              self.net.get_output('roi_data_3d')],
                                              feed_dict=feed_dict)
-                    vis_detections(blobs['image_data'], blobs['calib'], bbox_pred_cnr, rois, rcnn_roi, cls_prob)
+                    # self.net.get_output('rpn_bbox_pred'),
+                    vis_detections(blobs['lidar_bv_data'], blobs['image_data'], blobs['calib'], bbox_pred_cnr, rpn_data, rpn_rois, rcnn_roi, cls_prob)
 
             if (iter+1) % cfg.TRAIN.SNAPSHOT_ITERS == 0:
                 last_snapshot_iter = iter
@@ -246,69 +249,90 @@ class SolverWrapper(object):
         if last_snapshot_iter != iter:
             self.snapshot(sess, iter)
 
-def vis_detections(image, calib, bbox_pred_cnr, rois, rcnn_roi, scores):
+def vis_detections(lidar_bv, image, calib, bbox_pred_cnr, rpn_data, rpn_rois, rcnn_roi, scores):
     import matplotlib.pyplot as plt
     from utils.transform import lidar_3d_to_corners, corners_to_bv
     from fast_rcnn.bbox_transform import bbox_transform_inv_cnr
     from utils.draw import show_lidar_corners, show_image_boxes
     from utils.cython_nms import nms, nms_new
 
-    # print rois
-    boxes_3d = rois[2][:, 1:7]
 
-    boxes_img = rois[1][:2000, 0:5]
     image = image.reshape((image.shape[1], image.shape[2], image.shape[3]))
-    keep = nms(boxes_img, cfg.TEST.NMS)
-    boxes_img = boxes_img[keep]
-    boxes_3d = boxes_3d[keep]
-    image1 = show_image_boxes(image, boxes_img[:, 1:5])
-    plt.imshow(image1)
-    plt.show()
-    # cv2.waitKey(1)
+    lidar_bv = lidar_bv.reshape((lidar_bv.shape[1], lidar_bv.shape[2], lidar_bv.shape[3]))[:,:,23]
+    # visualize anchor_target_layer output
+    # rpn_anchors_3d = rpn_data[3][:,1:7]
+    # rpn_label = rpn_data[0]
+    # print rpn_label.shape
+    # print rpn_label[rpn_label==1]
+    # rpn_boxes_cnr = lidar_3d_to_corners(rpn_anchors_3d)
+    # img = show_lidar_corners(image, rpn_boxes_cnr, calib)
+    # plt.title('anchor target layer before regression')
+    # print img.shape
+    # plt.imshow(img)
+    # plt.show()
 
+    # visualize proposal_layer output
+    boxes_3d = rpn_rois[2][:, 1:7]
+    boxes_bv = rpn_rois[0][:, 0:5]
+    boxes_img = rpn_rois[1][:, 0:5]
+
+    
+    # keep = nms(boxes_img, cfg.TEST.NMS)
+    # boxes_img = boxes_img[keep]
+    # boxes_3d = boxes_3d[keep]
+    boxes_cnr = lidar_3d_to_corners(boxes_3d)
+    image_cnr = show_lidar_corners(image, boxes_cnr, calib)
+
+    image_bv = show_image_boxes(lidar_bv, boxes_bv[:300, 1:5])
+    image_img = show_image_boxes(image, boxes_img[-50:, 1:5])
+    plt.title('proposal_layer ')
+    # plt.ion()
+    plt.subplot(211)
+    plt.imshow(image_bv)
+    plt.subplot(212)
+    plt.imshow(image_cnr)
+    # plt.pause(1)
+    plt.show()
+
+    # visualize proposal_target_layer output
     # rois_image = rcnn_roi[1]
     # image2 = show_image_boxes(image, rois_image[:,1:5])
+    # plt.title('proposal_target_layer ')
     # plt.imshow(image2)
     # plt.show()
 
-    #Apply bounding-box regression deltas
-    box_deltas = bbox_pred_cnr
-    boxes_3d = boxes_3d[:bbox_pred_cnr.shape[0]]
-    boxes_cnr = lidar_3d_to_corners(boxes_3d)
-    print '================'
-    print box_deltas.shape
-    print boxes_cnr.shape
-    boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
-    print boxes_cnr.shape
-    boxes_bv = corners_to_bv(boxes_cnr)
+    # # visualize final
+    # #Apply bounding-box regression deltas
+    # box_deltas = bbox_pred_cnr#[:boxes_3d.shape[0]]
+    # boxes_3d = boxes_3d[:box_deltas.shape[0]]
+    # boxes_cnr = lidar_3d_to_corners(boxes_3d)
+    # print '================'
+    # print box_deltas.shape
+    # print boxes_cnr.shape
+    # boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
+    # print boxes_cnr.shape
+    # boxes_bv = corners_to_bv(boxes_cnr)
+    # print scores
 
-    print scores
-
-    thresh = 0.35
-    for j in xrange(1, 4):
-        inds = np.where(scores[:, j] > thresh)[0]
-        cls_scores = scores[inds, j]
-        cls_boxes = boxes_bv[inds, j*4:(j+1)*4]
-        cls_boxes_cnr = boxes_cnr[inds, j*24:(j+1)*24]
-        cls_dets = np.hstack((cls_boxes, cls_scores[:, np.newaxis])) \
-            .astype(np.float32, copy=False)
-        cls_dets_cnr = np.hstack((cls_boxes_cnr, cls_scores[:, np.newaxis])) \
-            .astype(np.float32, copy=False)
-        keep = nms(cls_dets, cfg.TEST.NMS)
-        cls_dets = cls_dets[keep, :]
-        cls_dets_cnr = cls_dets_cnr[keep, :]
-        # project to image
-        # print cls_dets_cnr
-        if np.any(cls_dets_cnr):
-            img = show_lidar_corners(image, cls_dets_cnr[:,:24], calib)
-            plt.title(str(j))
-            plt.imshow(img)
-            plt.show()
-            # plt.close()
-            # cv2.waitKey(1)
-
-
-
+    # thresh = 0.15
+    # for j in xrange(1, 4):
+    #     inds = np.where(scores[:, j] > thresh)[0]
+    #     cls_scores = scores[inds, j]
+    #     cls_boxes = boxes_bv[inds, j*4:(j+1)*4]
+    #     cls_boxes_cnr = boxes_cnr[inds, j*24:(j+1)*24]
+    #     cls_dets = np.hstack((cls_boxes, cls_scores[:, np.newaxis])) \
+    #         .astype(np.float32, copy=False)
+    #     cls_dets_cnr = np.hstack((cls_boxes_cnr, cls_scores[:, np.newaxis])) \
+    #         .astype(np.float32, copy=False)
+    #     keep = nms(cls_dets, cfg.TEST.NMS)
+    #     cls_dets = cls_dets[keep, :]
+    #     cls_dets_cnr = cls_dets_cnr[keep, :]
+    #     # project to image
+    #     if np.any(cls_dets_cnr):
+    #         img = show_lidar_corners(image, cls_dets_cnr[:,:24], calib)
+    #         plt.title(str(j))
+    #         plt.imshow(img)
+    #         plt.show()
 
 def get_training_roidb(imdb):
     """Returns a roidb (Region of Interest database) for use in training."""

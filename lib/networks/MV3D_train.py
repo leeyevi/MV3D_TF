@@ -4,7 +4,7 @@ from networks.network import Network
 #  n_classes = 21
 #  _feat_stride = [16,]
 #  anchor_scales = [8, 16, 32]
-n_classes = 4 # car, pedes, cyclist, dontcare
+n_classes = 2 # car, pedes, cyclist, dontcare
 _feat_stride = [4,]
 #  anchor_scales = [0.5, 1, 2]
 anchor_scales = [1.0, 1.0]
@@ -12,7 +12,7 @@ anchor_scales = [1.0, 1.0]
 class MV3D_train(Network):
     def __init__(self, trainable=True):
         self.inputs = []
-        self.lidar_bv_data = tf.placeholder(tf.float32, shape=[None, None, None, 24])
+        self.lidar_bv_data = tf.placeholder(tf.float32, shape=[None, None, None, 8])
         self.image_data = tf.placeholder(tf.float32, shape=[None, None, None, 3])
         self.im_info = tf.placeholder(tf.float32, shape=[None, 3])
         self.gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
@@ -108,7 +108,7 @@ class MV3D_train(Network):
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info', 'calib')
              .proposal_layer_3d(_feat_stride, 'TRAIN', name = 'rpn_rois'))
 
-        (self.feed('rpn_rois', 'gt_boxes_bv', 'gt_boxes_3d', 'gt_boxes_corners', 'calib')
+        (self.feed('rpn-data', 'gt_boxes_bv', 'gt_boxes_3d', 'gt_boxes_corners', 'calib')
              .proposal_target_layer_3d(n_classes, name='roi_data_3d'))
             # return
             # 1. rois: lidar_bv (nx4)
@@ -156,7 +156,7 @@ class MV3D_train(Network):
              .fc(2048, name='fc6_1')
              .dropout(0.5, name='drop6'))
              #  .fc(2048, name='fc7_1')
-             #  .dropout(0.5, name='drop7'))
+              # .dropout(0.5, name='drop7'))
 
         # image
         # (self.feed('deconv_2x_2', 'roi_data_img')

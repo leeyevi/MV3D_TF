@@ -14,7 +14,7 @@ from utils.cython_bbox import bbox_overlaps
 from utils.transform import lidar_3d_to_corners, lidar_to_bv, lidar_cnr_to_img
 import pdb
 
-DEBUG = True
+DEBUG = False
 
 # TODO : generate corners targets
 # receive:
@@ -40,8 +40,8 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
     # all_rois =   lidar_to_bv(rpn_rois_3d)
     all_rois = rpn_rois_bv
     # print "gt_boxes_bv: ", gt_boxes_bv
-    if DEBUG:
-        print "gt_boxes_bv: ", gt_boxes_bv, gt_boxes_bv.shape
+    # if DEBUG:
+        # print "gt_boxes_bv: ", gt_boxes_bv, gt_boxes_bv.shape
         # print "gt_boxes_bv: ", gt_boxes_bv[:, :-1]
         # print "gt_boxes_3d: ", gt_boxes_3d, gt_boxes_3d.shape
         # print "gt_boxes_3d: ", gt_boxes_3d[:, :-1]
@@ -75,6 +75,24 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
         all_rois, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_rois_per_image,
         rois_per_image, _num_classes)
 
+    # print "rois_3d shape: ", rois_3d.shape
+    # rois_cnr = lidar_3d_to_corners(rois_3d[:,1:7])
+    # rois_cnr = np.hstack((rois_3d[:,0].reshape(-1,1), rois_cnr))
+
+    # if DEBUG:
+    #     print "labels shape: ", labels.shape
+    #     print "keep_inds: ", keep_inds
+    #     print "all_rois_bv shape:, ", all_rois_bv.shape
+    #     # print rois_bv
+    #     print "rois_3d shape:, ", rois_3d.shape
+    #     print "rois_cnr shape:, ", rois_cnr.shape
+
+    # bbox_target_data = _compute_targets_cnr(
+    #     rois_cnr[:, 1:25], gt_boxes_corners[gt_assignment[keep_inds], :24], labels)
+    # bbox_targets = \
+    #     _get_bbox_regression_labels_3d(bbox_target_data, num_classes)
+
+
     rois_img = lidar_cnr_to_img(rois_cnr[:,1:25],
                                 calib[3], calib[2], calib[0])
     rois_img = np.hstack((rois_bv[:,0].reshape(-1, 1), rois_img))
@@ -82,6 +100,7 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
 
     if DEBUG:
         print "after sample"
+        print labels.shape
         print 'num fg: {}'.format((labels > 0).sum())
         print 'num bg: {}'.format((labels == 0).sum())
         print 'rois_bv shape: ', rois_bv.shape
@@ -244,14 +263,14 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
         print "gt assignment: ",  gt_assignment.shape
         print "max_overlaps: ", max_overlaps.shape
         # print "all_rois_bv", all_rois_bv[:10, 1:5]
-        print gt_boxes_bv
+        # print gt_boxes_bv[gt_assignment, 4]
         print "labels: ", labels.shape
 
     # Select foreground RoIs as those with >= FG_THRESH overlap
     fg_inds = np.where(max_overlaps >= cfg.TRAIN.FG_THRESH)[0]
     if DEBUG:
-        print "fg_inds: ", fg_inds
-        print "fg_rois_per_image: ", fg_rois_per_image
+        print "fg_inds: ", fg_inds.shape
+        # print "fg_rois_per_image: ", fg_rois_per_image
     # Guard against the case when an image has fewer than fg_rois_per_image
     # foreground RoIs
     fg_rois_per_this_image = int(min(fg_rois_per_image, fg_inds.size))
@@ -260,11 +279,22 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
         fg_inds = npr.choice(fg_inds, size=fg_rois_per_this_image, replace=False)
 
     # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
+    # print max_overlaps
+    # print max_overlaps[np.where(max_overlaps > 0.1)]
+
     bg_inds = np.where((max_overlaps < cfg.TRAIN.BG_THRESH_HI) &
                        (max_overlaps >= cfg.TRAIN.BG_THRESH_LO))[0]
+    # print cfg.TRAIN.BG_THRESH_LO
+    # print cfg.TRAIN.BG_THRESH_HI
+    # print bg_inds
+
+    # print np.where((max_overlaps < cfg.TRAIN.BG_THRESH_HI) & (max_overlaps >= cfg.TRAIN.BG_THRESH_LO))
+
+
     # Compute number of background RoIs to take from this image (guarding
     # against there being fewer than desired)
     bg_rois_per_this_image = rois_per_image - fg_rois_per_this_image
+
     bg_rois_per_this_image = min(bg_rois_per_this_image, bg_inds.size)
     # Sample background regions without replacement
     if bg_inds.size > 0:

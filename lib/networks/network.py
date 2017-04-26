@@ -224,7 +224,7 @@ class Network(object):
         with tf.variable_scope(name) as scope:
             rpn_rois_bv, rpn_rois_img, rpn_rois_3d = tf.py_func(proposal_layer_py_3d,[input[0],input[1],input[2], input[3], cfg_key, _feat_stride], [tf.float32, tf.float32, tf.float32])
             rpn_rois_bv = tf.reshape(rpn_rois_bv,[-1,5] , name = 'rpn_rois_bv')
-            rpn_rois_img = tf.reshape(rpn_rois_bv,[-1,5] , name = 'rpn_rois_img')
+            rpn_rois_img = tf.reshape(rpn_rois_img,[-1,5] , name = 'rpn_rois_img')
             rpn_rois_3d = tf.reshape(rpn_rois_3d,[-1,7] , name = 'rpn_rois_3d')
 
         #if cfg_key == 'TRAIN':
@@ -241,31 +241,35 @@ class Network(object):
         # gt_boxes_bv = lidar_to_top(input[1])
         with tf.variable_scope(name) as scope:
 
-            rpn_labels,rpn_bbox_targets = \
-            tf.py_func(anchor_target_layer_py,[input[0],input[1],input[2],input[3], _feat_stride, anchor_scales],[tf.float32,tf.float32])
+            rpn_labels,rpn_bbox_targets, rpn_rois_bv, rpn_rois_3d = \
+            tf.py_func(anchor_target_layer_py,[input[0],input[1],input[2],input[3], _feat_stride, anchor_scales],[tf.float32,tf.float32, tf.float32, tf.float32])
 
             rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels')
             rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets')
-            return rpn_labels, rpn_bbox_targets
+            rpn_rois_bv = tf.reshape(rpn_rois_bv,[-1,5] , name = 'rpn_rois_bv')
+            # rpn_rois_img = tf.reshape(rpn_rois_img,[-1,5] , name = 'rpn_rois_img')
+            rpn_rois_3d = tf.reshape(rpn_rois_3d,[-1,7] , name = 'rpn_rois_3d')
+            return rpn_labels, rpn_bbox_targets, rpn_rois_bv, rpn_rois_3d
 
 
     @layer
     def proposal_target_layer_3d(self, input, classes, name):
         if isinstance(input[0], tuple):
-            input_bv = input[0][0]
-            input_img = input[0][1]
-            input_3d = input[0][2]
+            input_bv = input[0][2]
+            # input_img = input[0][1]
+            input_3d = input[0][3]
         with tf.variable_scope(name) as scope:
             # print('dtype',input[0].dtype)
-            rois_bv, rois_img, labels,bbox_targets_corners = \
-            tf.py_func(proposal_target_layer_py_3d,[input_bv,input_3d,input[1],input[2],input[3],input[4],classes],[tf.float32,tf.float32,tf.int32,tf.float32])
+            rois_bv, rois_img, labels,bbox_targets_corners, rois_3d = \
+            tf.py_func(proposal_target_layer_py_3d,[input_bv,input_3d,input[1],input[2],input[3],input[4],classes],[tf.float32,tf.float32,tf.int32,tf.float32, tf.float32])
 
             rois_bv = tf.reshape(rois_bv,[-1,5] , name = 'rois_bv')
             rois_img = tf.reshape(rois_img,[-1,5] , name = 'rois_img')
+            rois_3d = tf.reshape(rois_3d,[-1,7] , name = 'rois_3d')
             labels = tf.convert_to_tensor(tf.cast(labels,tf.int32), name = 'labels')
             bbox_targets_corners = tf.convert_to_tensor(bbox_targets_corners, name = 'bbox_targets_corners')
 
-            return rois_bv, rois_img, labels, bbox_targets_corners
+            return rois_bv, rois_img, labels, bbox_targets_corners, rois_3d
 
     @layer
     def proposal_target_layer(self, input, classes, name):

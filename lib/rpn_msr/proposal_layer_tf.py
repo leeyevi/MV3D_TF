@@ -50,8 +50,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     # print 'rpn_cls_prob_reshape: ', rpn_cls_prob_reshape[:, :, :, _num_anchors:]
     # print 'rpn_bbox_pred: ', rpn_bbox_pred[]
 
-    # rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
-    # rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
+    rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
+    rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
 
     #rpn_cls_prob_reshape = np.transpose(np.reshape(rpn_cls_prob_reshape,[1,rpn_cls_prob_reshape.shape[0],rpn_cls_prob_reshape.shape[1],rpn_cls_prob_reshape.shape[2]]),[0,3,2,1])
     #rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,2,1])
@@ -66,6 +66,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     nms_thresh    = cfg[cfg_key].RPN_NMS_THRESH
     min_size      = cfg[cfg_key].RPN_MIN_SIZE
 
+    # post_nms_topN = 300
+
     # if DEBUG:
     #     print 'pre_nms_topN', pre_nms_topN
     #     print 'pre_nms_topN', post_nms_topN
@@ -74,8 +76,13 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
 
     # the first set of _num_anchors channels are bg probs
     # the second set are the fg probs, which we want
-    scores = rpn_cls_prob_reshape[:, :, :, _num_anchors:]
+    # print rpn_cls_prob_reshape.shape
+
+    scores = rpn_cls_prob_reshape[:, _num_anchors:, :, :]
     bbox_deltas = rpn_bbox_pred
+
+    # print scores.shape
+    # print bbox_deltas.shape
     #im_info = bottom[2].data[0, :]
 
     if DEBUG:
@@ -83,7 +90,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         print 'scale: {}'.format(im_info[2])
 
     # 1. Generate proposals from bbox deltas and shifted anchors
-    height, width = scores.shape[1:3]
+    # height, width = scores.shape[1:3]
+    height, width = scores.shape[-2:]
 
     if DEBUG:
         print 'score map size: {}'.format(scores.shape)
@@ -114,16 +122,18 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     # transpose to (1, H, W, 4 * A)
     # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
     # in slowest to fastest order
-    #  bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 6))
-    bbox_deltas = bbox_deltas.reshape((-1, 6))
+    bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 6))
+    # bbox_deltas = bbox_deltas.reshape((-1, 6))
 
     # Same story for the scores:
     #
     # scores are (1, A, H, W) format
     # transpose to (1, H, W, A)
     # reshape to (1 * H * W * A, 1) where rows are ordered by (h, w, a)
-    #  scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
-    scores = scores.reshape((-1, 1))
+    scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
+    # scores = scores.reshape((-1, 1))
+
+    # print np.sort(scores.ravel())[-30:]
 
     # convert anchors bv to anchors_3d
     anchors_3d = bv_anchor_to_lidar(anchors)
@@ -138,8 +148,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
 
 
     if DEBUG:
-        print "bbox_deltas: ", bbox_deltas[:10]
-        print "proposals number: ", proposals_3d[:10]
+        # print "bbox_deltas: ", bbox_deltas[:10]
+        # print "proposals number: ", proposals_3d[:10]
         print "proposals_bv shape: ", proposals_bv.shape
         print "proposals_3d shape: ", proposals_3d.shape
 
@@ -192,9 +202,9 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         print "proposals after nms"
         print "proposals_bv shape: ", proposals_bv.shape
         print "proposals_3d shape: ", proposals_3d.shape
-        print "proposals_bv", proposals_bv[:10]
-        print "proposals_img", proposals_img[:10]
-        print "scores: ", scores[:10]
+        # print "proposals_bv", proposals_bv[:10]
+        # print "proposals_img", proposals_img[:10]
+        # print "scores: ", scores[:10]
     # Output rois blob
     # Our RPN implementation only supports a single input image, so all
     # batch inds are 0

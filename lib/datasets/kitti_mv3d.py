@@ -26,7 +26,7 @@ class kitti_mv3d(datasets.imdb):
                             else kitti_path
         # self._data_path = '$Faster-RCNN_TF/data/KITTI/object'
         self._data_path = os.path.join(self._kitti_path, 'object')
-        self._classes = ('__background__', 'Car', 'Pedestrian', 'Cyclist')
+        self._classes = ('__background__', 'Car')#, 'Pedestrian', 'Cyclist')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.png'
         self._lidar_ext = '.npy'
