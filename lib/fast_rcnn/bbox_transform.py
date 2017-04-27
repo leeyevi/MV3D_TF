@@ -129,7 +129,7 @@ def bbox_transform_inv_3d(boxes, deltas):
     ctr_y = boxes[:, 1]
     ctr_z = boxes[:, 2]
 
-    dx = deltas[:, 0::6] # stride = 4
+    dx = deltas[:, 0::6] # stride = 6
     dy = deltas[:, 1::6]
     dz = deltas[:, 2::6]
     dl = deltas[:, 3::6]
@@ -138,7 +138,7 @@ def bbox_transform_inv_3d(boxes, deltas):
 
     pred_ctr_x = dx * lengths[:, np.newaxis] + ctr_x[:, np.newaxis]
     pred_ctr_y = dy * widths[:, np.newaxis] + ctr_y[:, np.newaxis]
-    pred_ctr_z = dz * heights[:, np.newaxis] + ctr_y[:, np.newaxis]
+    pred_ctr_z = dz * heights[:, np.newaxis] + ctr_z[:, np.newaxis]
     pred_l = np.exp(dl) * lengths[:, np.newaxis]
     pred_w = np.exp(dw) * widths[:, np.newaxis]
     pred_h = np.exp(dh) * heights[:, np.newaxis]
@@ -165,21 +165,20 @@ def bbox_transform_inv_cnr(boxes, deltas):
 
     boxes = boxes.astype(deltas.dtype, copy=False)
 
-
     gt_xyz0 = boxes[:, 0::8]
     gt_xyz6 = boxes[:, 5::8]
 
     mean_xyz0 = gt_xyz0.mean(0)
     mean_xyz6 = gt_xyz6.mean(0)
 
-    # assert(mean_xyz0.shape[0] == 3)
-    # assert(mean_xyz6.shape[0] == 3)
-
     # box diagonal distance
     diag = np.linalg.norm(mean_xyz0[:3] - mean_xyz6[:3])
 
-    pred_boxes = deltas * diag + boxes
+    deltas = deltas * diag
+    pred_boxes = np.zeros(deltas.shape, dtype=deltas.dtype)
 
+    for i in range(deltas.shape[1]/24):
+        pred_boxes[:,(i*24):(i*24+24)] = deltas[:,(i*24):(i*24+24)] + boxes
 
     return pred_boxes
 

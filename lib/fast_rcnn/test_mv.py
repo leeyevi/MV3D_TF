@@ -6,7 +6,7 @@ import cv2
 from utils.cython_nms import nms, nms_new
 from utils.boxes_grid import get_boxes_grid
 from utils.transform import lidar_3d_to_corners, corners_to_bv, lidar_cnr_to_img_single, lidar_cnr_to_img
-from utils.draw import show_lidar_corners
+from utils.draw import show_lidar_corners, show_image_boxes
 import cPickle
 import heapq
 from utils.blob import im_list_to_blob, lidar_list_to_blob
@@ -372,11 +372,12 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
     #  print 'boxes_3d', boxes_3d
     boxes_cnr = lidar_3d_to_corners(boxes_3d)
     #  boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
-    #  print boxes_cnr.shape
+    print boxes_cnr[0]
     pred_boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
     #  print "boxes_cnr: ", boxes_cnr[0]
-    #  print "pred_boxes_cnr: ", pred_boxes_cnr[0]
+    print "pred_boxes_cnr: ", pred_boxes_cnr[0]
     # pred_boxes = _clip_boxes(pred_boxes, im.shape)
+    # print pred_boxes_cnr.shape
 
     #  preject corners to lidar_bv
     pred_boxes_bv = corners_to_bv(pred_boxes_cnr)
@@ -386,11 +387,11 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
     #  print pred_boxes_bv.shape
     #  pred_boxes_img = lidar_cnr_to_img(pred_boxes_cnr, calib[3], calib[2,:9], calib[0])
 
-    if cfg.TEST.DEBUG_TIMELINE:
-        trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-        trace_file = open(str(long(time.time() * 1000)) + '-test-timeline.ctf.json', 'w')
-        trace_file.write(trace.generate_chrome_trace_format(show_memory=False))
-        trace_file.close()
+    # if cfg.TEST.DEBUG_TIMELINE:
+    #     trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+    #     trace_file = open(str(long(time.time() * 1000)) + '-test-timeline.ctf.json', 'w')
+    #     trace_file.write(trace.generate_chrome_trace_format(show_memory=False))
+    #     trace_file.close()
 
     #  return scores, pred_boxes_bv, pred_boxes_img, pred_boxes_cnr
     return scores, pred_boxes_bv, pred_boxes_cnr
@@ -527,8 +528,8 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
                 .astype(np.float32, copy=False)
             print "scores: ", cls_scores[:10]
             # print "boxes_bv: ", boxes_bv
-            print " cls_boxes", cls_boxes
-            print cls_boxes_cnr[:10]
+            # print " cls_boxes", cls_boxes
+            # print cls_boxes_cnr[:10]
             print "cls_dets : ", cls_dets.shape
             keep = nms(cls_dets, cfg.TEST.NMS)
             cls_dets = cls_dets[keep, :]
@@ -537,8 +538,17 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
             # cls_des_img = lidar_cnr_to_img_single(cls_dets_cnr, calib[3], calib[2], calib[0])
             # if vis:
             if np.any(cls_dets_cnr):
-                img = show_lidar_corners(im, cls_dets_cnr[:,:24], calib)
-                plt.imshow(img)
+
+
+                image_bv = show_image_boxes(bv[:,:,9], cls_dets[:, :4])
+                image_cnr = show_lidar_corners(im, cls_dets_cnr[:,:24], calib)
+
+                plt.title('proposal_layer ')
+
+                plt.subplot(211)
+                plt.imshow(image_bv)
+                plt.subplot(212)
+                plt.imshow(image_cnr)
                 plt.show()
                 # vis_detections(image, imdb.classes[j], cls_dets_img)
             all_boxes[j][i] = cls_dets
