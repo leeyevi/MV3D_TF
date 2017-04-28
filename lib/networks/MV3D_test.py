@@ -1,14 +1,14 @@
 import tensorflow as tf
 from networks.network import Network
 
-n_classes = 4
+n_classes = 2
 _feat_stride = [4,]
 anchor_scales = [1, 1]
 
 class MV3D_test(Network):
     def __init__(self, trainable=True):
         self.inputs = []
-        self.lidar_bv_data = tf.placeholder(tf.float32, shape=[None, None, None, 24])
+        self.lidar_bv_data = tf.placeholder(tf.float32, shape=[None, None, None, 9])
         self.image_data = tf.placeholder(tf.float32, shape=[None, None, None, 3])
         self.im_info = tf.placeholder(tf.float32, shape=[None, 3])
         self.gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
@@ -68,7 +68,7 @@ class MV3D_test(Network):
 
         #========= RPN ============
         (self.feed('conv5_3')
-             .deconv(shape=None, c_o=512, stride=2, ksize=3,  name='deconv_2x_1')
+             # .deconv(shape=None, c_o=512, stride=2, ksize=3,  name='deconv_2x_1')
              .conv(3,3,512,1,1,name='rpn_conv/3x3')
              .conv(1,1,len(anchor_scales)*2*2,1,1,padding='VALID',relu = False,name='rpn_cls_score'))
 
@@ -101,11 +101,13 @@ class MV3D_test(Network):
         #========= RoI Proposal ============
         # lidar_bv
         (self.feed('deconv_4x_1', 'rois')
+        # (self.feed('conv5_3', 'rois')
              .roi_pool(7, 7, 1.0/2, name='pool_5')
              .fc(2048, name='fc6_1'))
 
         # image
         (self.feed('deconv_2x_2', 'rois')
+        # (self.feed('conv5_3_2', 'rois')
              .roi_pool(7, 7, 1.0/4, name='pool_5')
              .fc(2048, name='fc6_2'))
 

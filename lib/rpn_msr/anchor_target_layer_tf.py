@@ -16,7 +16,7 @@ from fast_rcnn.bbox_transform import bbox_transform, bbox_transform_3d
 from utils.transform import bv_anchor_to_lidar
 import pdb
 
-DEBUG = True
+DEBUG = False
 
 def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_stride = [16,], anchor_scales = [8, 16, 32]):
     """
@@ -201,6 +201,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
     zeros = np.zeros((labels_new.shape[0], 1), dtype=np.float32)
     anchors =  np.hstack((zeros, anchors[all_inds])).astype(np.float32)
     anchors_3d =  np.hstack((zeros, anchors_3d[all_inds])).astype(np.float32)
+    # anchors_3d =  np.hstack((zeros, gt_boxes_3d)).astype(np.float32)
 
 
     labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
@@ -211,6 +212,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
         disable_inds = npr.choice(
             bg_inds, size=(len(bg_inds) - num_bg), replace=False)
         labels[disable_inds] = -1
+
     # labels[hard_negative] = -1
     # # subsample negative labels if we have too many
     # num_bg = cfg.TRAIN.RPN_BATCHSIZE - np.sum(labels == 1)

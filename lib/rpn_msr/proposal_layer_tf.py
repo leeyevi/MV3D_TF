@@ -50,8 +50,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     # print 'rpn_cls_prob_reshape: ', rpn_cls_prob_reshape[:, :, :, _num_anchors:]
     # print 'rpn_bbox_pred: ', rpn_bbox_pred[]
 
-    rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
-    rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
+    # rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
+    # rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
 
     #rpn_cls_prob_reshape = np.transpose(np.reshape(rpn_cls_prob_reshape,[1,rpn_cls_prob_reshape.shape[0],rpn_cls_prob_reshape.shape[1],rpn_cls_prob_reshape.shape[2]]),[0,3,2,1])
     #rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,2,1])
@@ -66,7 +66,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     nms_thresh    = cfg[cfg_key].RPN_NMS_THRESH
     min_size      = cfg[cfg_key].RPN_MIN_SIZE
 
-    # post_nms_topN = 300
+    pre_nms_topN = 12000
+    post_nms_topN = 2000
 
     # if DEBUG:
     #     print 'pre_nms_topN', pre_nms_topN
@@ -78,7 +79,17 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     # the second set are the fg probs, which we want
     # print rpn_cls_prob_reshape.shape
 
-    scores = rpn_cls_prob_reshape[:, _num_anchors:, :, :]
+    height, width = rpn_cls_prob_reshape.shape[1:3]
+    # scores = rpn_cls_prob_reshape[:, _num_anchors:, :, :]
+    scores = np.reshape(np.reshape(rpn_cls_prob_reshape, [1, height, width, _num_anchors, 2])[:,:,:,:,1],[1, height, width, _num_anchors])
+
+    # scores = scores
+
+    # print scores[0,0,:10,:]
+    # print np.max(scores)
+    # print np.min(scores)
+
+    # scores = rpn_cls_prob_reshape[:, :, :, _num_anchors:]
     bbox_deltas = rpn_bbox_pred
 
     # print scores.shape
@@ -90,8 +101,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         print 'scale: {}'.format(im_info[2])
 
     # 1. Generate proposals from bbox deltas and shifted anchors
-    # height, width = scores.shape[1:3]
-    height, width = scores.shape[-2:]
+    
+    # height, width = scores.shape[-2:]
 
     if DEBUG:
         print 'score map size: {}'.format(scores.shape)
@@ -122,16 +133,16 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     # transpose to (1, H, W, 4 * A)
     # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
     # in slowest to fastest order
-    bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 6))
-    # bbox_deltas = bbox_deltas.reshape((-1, 6))
+    # bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 6))
+    bbox_deltas = bbox_deltas.reshape((-1, 6))
 
     # Same story for the scores:
     #
     # scores are (1, A, H, W) format
     # transpose to (1, H, W, A)
     # reshape to (1 * H * W * A, 1) where rows are ordered by (h, w, a)
-    scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
-    # scores = scores.reshape((-1, 1))
+    # scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
+    scores = scores.reshape((-1, 1))
 
     # print np.sort(scores.ravel())[-30:]
 

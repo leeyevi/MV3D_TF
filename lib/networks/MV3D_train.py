@@ -5,14 +5,14 @@ from networks.network import Network
 #  _feat_stride = [16,]
 #  anchor_scales = [8, 16, 32]
 n_classes = 2 # car, pedes, cyclist, dontcare
-_feat_stride = [4,]
+_feat_stride = [8, 8]
 #  anchor_scales = [0.5, 1, 2]
 anchor_scales = [1.0, 1.0]
 
 class MV3D_train(Network):
     def __init__(self, trainable=True):
         self.inputs = []
-        self.lidar_bv_data = tf.placeholder(tf.float32, shape=[None, None, None, 8])
+        self.lidar_bv_data = tf.placeholder(tf.float32, shape=[None, None, None, 9])
         self.image_data = tf.placeholder(tf.float32, shape=[None, None, None, 3])
         self.im_info = tf.placeholder(tf.float32, shape=[None, 3])
         self.gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
@@ -82,13 +82,14 @@ class MV3D_train(Network):
               .conv(3, 3, 512, 1, 1, name='conv5_3_2'))
 
         #========= RPN ============
+                     # 
         (self.feed('conv5_3')
-             .deconv(shape=None, c_o=512, stride=2, ksize=3,  name='deconv_2x_1')
+             # .deconv(shape=None, c_o=512, stride=2, ksize=3,  name='deconv_2x_1')
              .conv(3,3,512,1,1,name='rpn_conv/3x3')
              .conv(1,1,len(anchor_scales)*2*2 ,1 , 1, padding='VALID', relu = False, name='rpn_cls_score'))
 
         (self.feed('rpn_cls_score','gt_boxes_bv', 'gt_boxes_3d', 'im_info')
-             .anchor_target_layer(_feat_stride, anchor_scales, name = 'rpn-data' )) # 4 downsample
+             .anchor_target_layer(_feat_stride[0], anchor_scales, name = 'rpn-data' )) # 4 downsample
 
         # Loss of rpn_cls & rpn_boxes
         # ancho_num * xyzhlw
@@ -106,7 +107,7 @@ class MV3D_train(Network):
              .reshape_layer(len(anchor_scales)*2*2,name = 'rpn_cls_prob_reshape'))
 
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info', 'calib')
-             .proposal_layer_3d(_feat_stride, 'TRAIN', name = 'rpn_rois'))
+             .proposal_layer_3d(_feat_stride[0], 'TRAIN', name = 'rpn_rois'))
 
         (self.feed('rpn-data', 'gt_boxes_bv', 'gt_boxes_3d', 'gt_boxes_corners', 'calib')
              .proposal_target_layer_3d(n_classes, name='roi_data_3d'))
@@ -122,10 +123,10 @@ class MV3D_train(Network):
              .proposal_transform(target='bv', name='roi_data_bv'))
 
         # (self.feed('conv5_3')
-        #       .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
+        #      .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
 
         # (self.feed('conv5_3_2')
-        #       .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
+        #      .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
 
         #========= RoI Proposal ============
 
@@ -152,26 +153,26 @@ class MV3D_train(Network):
         # lidar_bv
         # (self.feed('deconv_4x_1', 'roi_data_bv')
         (self.feed('conv5_3', 'roi_data_bv')
-             .roi_pool(7, 7, 1.0/2, name='pool_5')
+             .roi_pool(7, 7, 1.0/_feat_stride[0], name='pool_5')
              .fc(2048, name='fc6_1')
-             .dropout(0.5, name='drop6'))
+             .dropout(self.keep_prob, name='drop6'))
              #  .fc(2048, name='fc7_1')
-              # .dropout(0.5, name='drop7'))
+              # .dropout(self.keep_prob, name='drop7'))
 
         # image
         # (self.feed('deconv_2x_2', 'roi_data_img')
-        (self.feed('conv5_3', 'roi_data_img')
-             .roi_pool(7, 7, 1.0/4, name='pool_5')
+        (self.feed('conv5_3_2', 'roi_data_img')
+             .roi_pool(7, 7, 1.0/_feat_stride[1], name='pool_5')
              .fc(2048, name='fc6_2')
-             .dropout(0.5, name='drop6_1'))
+             .dropout(self.keep_prob, name='drop6_1'))
              #  .fc(2048, name='fc7_2')
-             #  .dropout(0.5, name='drop7_2'))
+             #  .dropout(self.keep_prob, name='drop7_2'))
 
         # fusion
         (self.feed('drop6', 'drop6_1')
              .concat(axis=1, name='concat1')
              .fc(4096, name='fc7')
-             .dropout(0.5, name='drop7')
+             .dropout(self.keep_prob, name='drop7')
              .fc(n_classes, relu=False, name='cls_score')
              .softmax(name='cls_prob'))
 

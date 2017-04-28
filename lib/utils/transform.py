@@ -1,9 +1,9 @@
 import numpy as np
 
-TOP_X_MAX = 70.3
+TOP_X_MAX = 60
 TOP_X_MIN = 0
-TOP_Y_MIN = -40
-TOP_Y_MAX = 40
+TOP_Y_MIN = -30
+TOP_Y_MAX = 30
 RES = 0.1
 LIDAR_HEIGHT = 1.73
 CAR_HEIGHT = 1.56
@@ -106,8 +106,8 @@ def bv_anchor_to_lidar(anchors):
 
 #     print ex_ctr_x, ex_ctr_y
     # TODO : figure out why
-    ex_ctr_x -= 10
-    ex_ctr_y += 10
+    # ex_ctr_x -= 10
+    # ex_ctr_y += 10
 
     ex_heights = np.ones((anchors.shape[0], 1), dtype=np.float32) * CAR_HEIGHT
     ex_ctr_z = np.ones((anchors.shape[0], 1), dtype=np.float32) * -(LIDAR_HEIGHT-CAR_HEIGHT/2.) #
@@ -121,15 +121,29 @@ def lidar_3d_to_bv(rois_3d):
     cast lidar 3d points(x, y, z, l, w, h) to bird view (x1, y1, x2, y2)
     """
 
-    rois = np.zeros((rois_3d.shape[0], 4))
+    # print len(rois_3d.shape)
+    if rois_3d.shape[0] == 6:
+        rois = np.zeros(4)
 
-    rois[:, 0] = rois_3d[:, 0] + rois_3d[:, 3] * 0.5
-    rois[:, 1] = rois_3d[:, 1] + rois_3d[:, 4] * 0.5
-    rois[:, 2] = rois_3d[:, 0] - rois_3d[:, 3] * 0.5
-    rois[:, 3] = rois_3d[:, 1] - rois_3d[:, 4] * 0.5
+        rois[0] = rois_3d[0] + rois_3d[3] * 0.5
+        rois[1] = rois_3d[1] + rois_3d[4] * 0.5
+        rois[2] = rois_3d[0] - rois_3d[3] * 0.5
+        rois[3] = rois_3d[1] - rois_3d[4] * 0.5
 
-    rois[:, 0], rois[:, 1] = _lidar_to_bv_coord(rois[:, 0], rois[:, 1])
-    rois[:, 2], rois[:, 3] = _lidar_to_bv_coord(rois[:, 2], rois[:, 3])
+        rois[0], rois[1] = _lidar_to_bv_coord(rois[0], rois[1])
+        rois[2], rois[3] = _lidar_to_bv_coord(rois[2], rois[3])
+
+    else:
+
+        rois = np.zeros((rois_3d.shape[0], 4))
+
+        rois[:, 0] = rois_3d[:, 0] + rois_3d[:, 3] * 0.5
+        rois[:, 1] = rois_3d[:, 1] + rois_3d[:, 4] * 0.5
+        rois[:, 2] = rois_3d[:, 0] - rois_3d[:, 3] * 0.5
+        rois[:, 3] = rois_3d[:, 1] - rois_3d[:, 4] * 0.5
+
+        rois[:, 0], rois[:, 1] = _lidar_to_bv_coord(rois[:, 0], rois[:, 1])
+        rois[:, 2], rois[:, 3] = _lidar_to_bv_coord(rois[:, 2], rois[:, 3])
 
     return rois.astype(np.float32)
 
@@ -344,8 +358,9 @@ def _corners_to_bv(corners):
     return pts_2D
 
 def corners_to_bv(corners):
-    bv = np.zeros((corners.shape[0], 4*4))
-    for i in xrange(4):
+    num_class = corners.shape[1] / 24
+    bv = np.zeros((corners.shape[0], 4*num_class))
+    for i in xrange(num_class):
         cnr = corners[:, i*24:(i+1)*24]
         bv[:, i*4:(i+1)*4] = _corners_to_bv(cnr)
 

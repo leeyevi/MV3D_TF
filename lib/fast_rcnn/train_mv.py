@@ -21,8 +21,8 @@ import time
 
 # DEBUG = True
 DEBUG = False
-vis = True
-# vis = False
+# vis = True
+vis = False
 
 class SolverWrapper(object):
     """A simple wrapper around Caffe's solver.
@@ -38,10 +38,10 @@ class SolverWrapper(object):
         self.output_dir = output_dir
         self.pretrained_model = pretrained_model
 
-        print 'Computing bounding-box regression targets...'
-        if cfg.TRAIN.BBOX_REG:
-            self.bbox_means, self.bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
-        print 'done'
+        # print 'Computing bounding-box regression targets...'
+        # if cfg.TRAIN.BBOX_REG:
+        #     self.bbox_means, self.bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
+        # print 'done'
 
         # For checkpoint
         self.saver = saver
@@ -169,9 +169,9 @@ class SolverWrapper(object):
         #                                 cfg.TRAIN.STEPSIZE, 0.1, staircase=True)
         #  momentum = cfg.TRAIN.MOMENTUM
         #  train_op = tf.train.MomentumOptimizer(lr, momentum).minimize(loss, global_step=global_step)
-        lr = 0.0001
-        # train_op = tf.train.GradientDescentOptimizer(lr).minimize(loss)
-        train_op = tf.train.AdamOptimizer(lr).minimize(loss)
+        lr = 0.001
+        train_op = tf.train.GradientDescentOptimizer(lr).minimize(loss)
+        # train_op = tf.train.AdamOptimizer(lr).minimize(loss)
 
 
         # iintialize variables
@@ -190,9 +190,9 @@ class SolverWrapper(object):
 
             # Make one SGD update
             feed_dict={self.net.image_data: blobs['image_data'],
-                        self.net.lidar_bv_data: blobs['lidar_bv_data'],
+                       self.net.lidar_bv_data: blobs['lidar_bv_data'],
                        self.net.im_info: blobs['im_info'],
-                       self.net.keep_prob: 0.5,
+                       self.net.keep_prob: 1,
                        self.net.gt_boxes: blobs['gt_boxes'],
                        self.net.gt_boxes_bv: blobs['gt_boxes_bv'],
                        self.net.gt_boxes_3d: blobs['gt_boxes_3d'],
@@ -240,7 +240,7 @@ class SolverWrapper(object):
                                              self.net.get_output('roi_data_3d')],
                                              feed_dict=feed_dict)
                     # self.net.get_output('rpn_bbox_pred'),
-                    vis_detections(blobs['lidar_bv_data'], blobs['image_data'], blobs['calib'], bbox_pred_cnr, rpn_data, rpn_rois, rcnn_roi, cls_prob)
+                    vis_detections(blobs['lidar_bv_data'], blobs['image_data'], blobs['calib'], bbox_pred_cnr, rpn_data, rpn_rois, rcnn_roi, cls_prob,  blobs['gt_boxes_3d'])
 
             if (iter+1) % cfg.TRAIN.SNAPSHOT_ITERS == 0:
                 last_snapshot_iter = iter
@@ -249,7 +249,7 @@ class SolverWrapper(object):
         if last_snapshot_iter != iter:
             self.snapshot(sess, iter)
 
-def vis_detections(lidar_bv, image, calib, bbox_pred_cnr, rpn_data, rpn_rois, rcnn_roi, scores):
+def vis_detections(lidar_bv, image, calib, bbox_pred_cnr, rpn_data, rpn_rois, rcnn_roi, scores, gt_boxes_3d):
     import matplotlib.pyplot as plt
     from utils.transform import lidar_3d_to_corners, corners_to_bv
     from fast_rcnn.bbox_transform import bbox_transform_inv_cnr
@@ -258,39 +258,47 @@ def vis_detections(lidar_bv, image, calib, bbox_pred_cnr, rpn_data, rpn_rois, rc
 
 
     image = image.reshape((image.shape[1], image.shape[2], image.shape[3]))
-    lidar_bv = lidar_bv.reshape((lidar_bv.shape[1], lidar_bv.shape[2], lidar_bv.shape[3]))[:,:,23]
+    lidar_bv = lidar_bv.reshape((lidar_bv.shape[1], lidar_bv.shape[2], lidar_bv.shape[3]))[:,:,8]
     # visualize anchor_target_layer output
-    # rpn_anchors_3d = rpn_data[3][:,1:7]
+    rpn_anchors_3d = rpn_data[3][:,1:7]
+    rpn_bv = rpn_data[2][:,1:5]
     # rpn_label = rpn_data[0]
     # print rpn_label.shape
     # print rpn_label[rpn_label==1]
-    # rpn_boxes_cnr = lidar_3d_to_corners(rpn_anchors_3d)
-    # img = show_lidar_corners(image, rpn_boxes_cnr, calib)
-    # plt.title('anchor target layer before regression')
-    # print img.shape
-    # plt.imshow(img)
-    # plt.show()
+    rpn_boxes_cnr = lidar_3d_to_corners(rpn_anchors_3d)
+    img = show_lidar_corners(image, rpn_boxes_cnr[:10], calib)
+    img_bv = show_image_boxes(lidar_bv, rpn_bv)
+    plt.title('anchor target layer before regression')
+    print img.shape
+    # plt.ion()
+    plt.subplot(211)
+    plt.imshow(img_bv)
+    plt.subplot(212)
+    plt.imshow(img)
+    plt.show()
 
     # visualize proposal_layer output
-    boxes_3d = rpn_rois[2][:, 1:7]
-    boxes_bv = rpn_rois[0][:, 0:5]
-    boxes_img = rpn_rois[1][:, 0:5]
+    boxes_3d = rcnn_roi[4][:, 1:7]
+    boxes_bv = rcnn_roi[0][:, 0:5]
+    boxes_img = rcnn_roi[1][:, 0:5]
 
     
     # keep = nms(boxes_img, cfg.TEST.NMS)
     # boxes_img = boxes_img[keep]
     # boxes_3d = boxes_3d[keep]
-    boxes_cnr = lidar_3d_to_corners(boxes_3d)
-    image_cnr = show_lidar_corners(image, boxes_cnr, calib)
+    # boxes_cnr = lidar_3d_to_corners(boxes_3d[:100])
+    print boxes_3d.shape
+    print boxes_bv.shape
+    # image_cnr = show_lidar_corners(image, boxes_cnr, calib)
 
-    image_bv = show_image_boxes(lidar_bv, boxes_bv[:300, 1:5])
-    image_img = show_image_boxes(image, boxes_img[-50:, 1:5])
+    image_bv = show_image_boxes(lidar_bv, boxes_bv[:, 1:5])
+    image_img = show_image_boxes(image, boxes_img[:, 1:5])
     plt.title('proposal_layer ')
     # plt.ion()
     plt.subplot(211)
     plt.imshow(image_bv)
     plt.subplot(212)
-    plt.imshow(image_cnr)
+    plt.imshow(image_img)
     # plt.pause(1)
     plt.show()
 
@@ -301,21 +309,21 @@ def vis_detections(lidar_bv, image, calib, bbox_pred_cnr, rpn_data, rpn_rois, rc
     # plt.imshow(image2)
     # plt.show()
 
-    # # visualize final
-    # #Apply bounding-box regression deltas
+    # # # visualize final
+    # # #Apply bounding-box regression deltas
     # box_deltas = bbox_pred_cnr#[:boxes_3d.shape[0]]
     # boxes_3d = boxes_3d[:box_deltas.shape[0]]
     # boxes_cnr = lidar_3d_to_corners(boxes_3d)
-    # print '================'
-    # print box_deltas.shape
-    # print boxes_cnr.shape
+    # # print '================'
+    # # print box_deltas.shape
+    # # print boxes_cnr.shape
     # boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
-    # print boxes_cnr.shape
+    # # print boxes_cnr.shape
     # boxes_bv = corners_to_bv(boxes_cnr)
-    # print scores
+    # # print scores
 
     # thresh = 0.15
-    # for j in xrange(1, 4):
+    # for j in xrange(1, 2):
     #     inds = np.where(scores[:, j] > thresh)[0]
     #     cls_scores = scores[inds, j]
     #     cls_boxes = boxes_bv[inds, j*4:(j+1)*4]

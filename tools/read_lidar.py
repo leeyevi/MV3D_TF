@@ -1,16 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-side_range = (-20., 20.)
-fwd_range = (0., 40.)
-height_range = (-1.73, 0.47) #
+
 
 # ==============================================================================
 #                                                         POINT_CLOUD_2_BIRDSEYE
 # ==============================================================================
 def point_cloud_2_top(points,
                       res=0.1,
-                      zres=0.1,
+                      zres=0.3,
                       side_range=(-10., 10.),  # left-most to right-most
                       fwd_range=(-10., 10.),  # back-most to forward-most
                       height_range=(-2., 2.),  # bottom-most to upper-most
@@ -47,10 +45,11 @@ def point_cloud_2_top(points,
     reflectance = points[:,3]
 
     # INITIALIZE EMPTY ARRAY - of the dimensions we want
-    x_max = 1 + int((side_range[1] - side_range[0]) / res)
-    y_max = 1 + int((fwd_range[1] - fwd_range[0]) / res)
-    z_max = 1 + int((height_range[1] - height_range[0]) / res)
-    top = np.zeros([y_max, x_max, z_max + 1], dtype=np.float32)
+    x_max = int((side_range[1] - side_range[0]) / res)
+    y_max = int((fwd_range[1] - fwd_range[0]) / res)
+    z_max = int((height_range[1] - height_range[0]) / zres)
+    # z_max =
+    top = np.zeros([y_max+1, x_max+1, z_max+1], dtype=np.float32)
 
     # FILTER - To return only indices of points within desired cube
     # Three filters for: Front-to-back, side-to-side, and height ranges
@@ -60,6 +59,22 @@ def point_cloud_2_top(points,
     s_filt = np.logical_and(
         (y_points > -side_range[1]), (y_points < -side_range[0]))
     filter = np.logical_and(f_filt, s_filt)
+
+
+    # # ASSIGN EACH POINT TO A HEIGHT SLICE
+    # # n_slices-1 is used because values above max_height get assigned to an
+    # # extra index when we call np.digitize().
+    # bins = np.linspace(height_range[0], height_range[1], num=n_slices-1)
+    # slice_indices = np.digitize(z_points, bins=bins, right=False)
+    # # RESCALE THE REFLECTANCE VALUES - to be between the range 0-255
+    # pixel_values = scale_to_255(r_points, min=0.0, max=1.0)
+    # FILL PIXEL VALUES IN IMAGE ARRAY
+    # -y is used because images start from top left
+    # x_max = int((side_range[1] - side_range[0]) / res)
+    # y_max = int((fwd_range[1] - fwd_range[0]) / res)
+    # im = np.zeros([y_max, x_max, n_slices], dtype=np.uint8)
+    # im[-y_img, x_img, slice_indices] = pixel_values
+
 
     for i, height in enumerate(np.arange(height_range[0], height_range[1], zres)):
 
@@ -84,12 +99,11 @@ def point_cloud_2_top(points,
         # floor & ceil used to prevent anything being rounded to below 0 after
         # shift
         x_img -= int(np.floor(side_range[0] / res))
-        y_img += int(np.ceil(fwd_range[1] / res))
+        y_img += int(np.floor(fwd_range[1] / res))
 
         # CLIP HEIGHT VALUES - to between min and max heights
-        # pixel_values = zi_points - height_range[0]
-        pixel_values = zi_points
-
+        pixel_values = zi_points - height_range[0]
+        # pixel_values = zi_points
 
         # FILL PIXEL VALUES IN IMAGE ARRAY
         top[y_img, x_img, i] = pixel_values
@@ -102,24 +116,27 @@ def point_cloud_2_top(points,
 velodyne = "/sdb-4T/kitti/object/training/velodyne/"
 bird = "/sdb-4T/kitti/object/training/lidar_bv/"
 
-for i in range(7000):
+side_range = (-25., 25.)
+fwd_range = (0., 50)
+height_range = (-2, 0.4) #
+
+for i in range(7400):
     filename = velodyne + str(i).zfill(6) + ".bin"
     print("Processing: ", filename)
     scan = np.fromfile(filename, dtype=np.float32)
     scan = scan.reshape((-1, 4))
-    bird_view = point_cloud_2_top(scan, res=0.1, zres=0.1,
+    bird_view = point_cloud_2_top(scan, res=0.1, zres=0.3,
                                    side_range=side_range,  # left-most to right-most
                                    fwd_range=fwd_range,  # back-most to forward-most
                                    height_range=height_range)
     #save
     np.save(bird+str(i).zfill(6)+".npy",bird_view)
 
-
 # test
-test = np.load(bird + "000000.npy")
+test = np.load(bird + "000008.npy")
 
 print(test.shape)
-plt.imshow(test[:,:,11])
+plt.imshow(test[:,:,8])
 plt.show()
 
 
