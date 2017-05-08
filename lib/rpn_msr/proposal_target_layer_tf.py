@@ -14,7 +14,7 @@ from utils.cython_bbox import bbox_overlaps
 from utils.transform import lidar_3d_to_corners, lidar_to_bv, lidar_cnr_to_img
 import pdb
 
-DEBUG = False
+DEBUG = True
 
 # TODO : generate corners targets
 # receive:

@@ -109,7 +109,7 @@ class MV3D_train(Network):
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info', 'calib')
              .proposal_layer_3d(_feat_stride[0], 'TRAIN', name = 'rpn_rois'))
 
-        (self.feed('rpn-data', 'gt_boxes_bv', 'gt_boxes_3d', 'gt_boxes_corners', 'calib')
+        (self.feed('rpn_rois', 'gt_boxes_bv', 'gt_boxes_3d', 'gt_boxes_corners', 'calib')
              .proposal_target_layer_3d(n_classes, name='roi_data_3d'))
             # return
             # 1. rois: lidar_bv (nx4)

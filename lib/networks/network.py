@@ -7,6 +7,7 @@ from rpn_msr.proposal_layer_tf import proposal_layer_3d as proposal_layer_py_3d
 from rpn_msr.anchor_target_layer_tf import anchor_target_layer as anchor_target_layer_py
 from rpn_msr.proposal_target_layer_tf import proposal_target_layer as proposal_target_layer_py
 from rpn_msr.proposal_target_layer_tf import proposal_target_layer_3d as proposal_target_layer_py_3d
+from fast_rcnn.config import cfg
 
 DEFAULT_PADDING = 'SAME'
 # TOP_X_MAX = 70.3
@@ -52,10 +53,8 @@ class Network(object):
     def load(self, data_path, session, saver, ignore_missing=False):
         if data_path.endswith('.ckpt.meta'):
             print '========================'
-            # print data_path.strip('.ckpt.meta')
             saver = tf.train.import_meta_graph(data_path)
             saver.restore(session, data_path[:-5])
-            # saver.restore(session,  data_path.strip('.meta'))
 
         else:
             data_dict = np.load(data_path).item()
@@ -98,11 +97,21 @@ class Network(object):
         id = sum(t.startswith(prefix) for t,_ in self.layers.items())+1
         return '%s_%d'%(prefix, id)
 
-    def make_var(self, name, shape, initializer=None, trainable=True):
-        return tf.get_variable(name, shape, initializer=initializer, trainable=trainable)
+    def make_var(self, name, shape, initializer=None, trainable=True, regularizer=None):
+        return tf.get_variable(name, shape, initializer=initializer, trainable=trainable, regularizer=regularizer)
 
     def validate_padding(self, padding):
         assert padding in ('SAME', 'VALID')
+
+
+    def l2_regularizer(self, weight_decay=0.0005, scope=None):
+        def regularizer(tensor):
+            with tf.name_scope(scope, default_name='l2_regularizer', values=[tensor]):
+                l2_weight = tf.convert_to_tensor(weight_decay,
+                                       dtype=tensor.dtype.base_dtype,
+                                       name='weight_decay')
+                return tf.multiply(l2_weight, tf.nn.l2_loss(tensor), name='value')
+        return regularizer
 
     @layer
     def conv(self, input, k_h, k_w, c_o, s_h, s_w, name, relu=True, padding=DEFAULT_PADDING, group=1, trainable=True):
@@ -255,9 +264,9 @@ class Network(object):
     @layer
     def proposal_target_layer_3d(self, input, classes, name):
         if isinstance(input[0], tuple):
-            input_bv = input[0][2]
+            input_bv = input[0][0]
             # input_img = input[0][1]
-            input_3d = input[0][3]
+            input_3d = input[0][2]
         with tf.variable_scope(name) as scope:
             # print('dtype',input[0].dtype)
             rois_bv, rois_img, labels,bbox_targets_corners, rois_3d = \
@@ -327,15 +336,30 @@ class Network(object):
             pass
 
 
+    # @layer
+    # def reshape_layer(self, input, d, name):
+    #     input_shape = tf.shape(input)
+    #     if name == 'rpn_cls_prob_reshape':
+    #         # input: (1, H, W, Axd)
+    #         # transpose: (1, A*d, H, W)
+    #         # reshape: (1, d, A*H, W)
+    #         # transpose: (1, A*H, W, d)
+    #          return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),[input_shape[0],
+    #                 int(d),tf.cast(tf.cast(input_shape[1],tf.float32)/tf.cast(d,tf.float32)*tf.cast(input_shape[3],tf.float32),tf.int32),input_shape[2]]),
+    #          [0,2,3,1],name=name)
+    #     else:
+    #          return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),[input_shape[0],
+    #                 int(d),tf.cast(tf.cast(input_shape[1],tf.float32)*(tf.cast(input_shape[3],tf.float32)/tf.cast(d,tf.float32)),tf.int32),input_shape[2]]),[0,2,3,1],name=name)
+
     @layer
     def reshape_layer(self, input, d, name):
         input_shape = tf.shape(input)
-        if name == 'rpn_cls_prob_reshape':
-             return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),[input_shape[0],
-                    int(d),tf.cast(tf.cast(input_shape[1],tf.float32)/tf.cast(d,tf.float32)*tf.cast(input_shape[3],tf.float32),tf.int32),input_shape[2]]),[0,2,3,1],name=name)
-        else:
-             return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),[input_shape[0],
-                    int(d),tf.cast(tf.cast(input_shape[1],tf.float32)*(tf.cast(input_shape[3],tf.float32)/tf.cast(d,tf.float32)),tf.int32),input_shape[2]]),[0,2,3,1],name=name)
+
+        return tf.reshape(input, 
+                            [input_shape[0],
+                            input_shape[1],
+                            -1,
+                            int(d)])
 
     @layer
     def feature_extrapolating(self, input, scales_base, num_scale_base, num_per_octave, name):
@@ -386,7 +410,7 @@ class Network(object):
                 init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
                 init_biases = tf.constant_initializer(0.0)
 
-            weights = self.make_var('weights', [dim, num_out], init_weights, trainable)
+            weights = self.make_var('weights', [dim, num_out], init_weights, trainable, regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
             biases = self.make_var('biases', [num_out], init_biases, trainable)
 
             op = tf.nn.relu_layer if relu else tf.nn.xw_plus_b

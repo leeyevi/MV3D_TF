@@ -15,7 +15,7 @@ import cPickle
 from fast_rcnn.config import cfg
 import math
 from rpn_msr.generate_anchors import generate_anchors_bv
-from utils.transform import camera_to_lidar_cnr, lidar_to_corners_single, computeCorners3D, lidar_cnr_to_bv_single, lidar_cnr_to_3d
+from utils.transform import camera_to_lidar_cnr, lidar_to_corners_single, computeCorners3D, lidar_3d_to_bv, lidar_cnr_to_3d
 
 class kitti_mv3d(datasets.imdb):
     def __init__(self, image_set, kitti_path=None):
@@ -115,6 +115,8 @@ class kitti_mv3d(datasets.imdb):
 
         with open(image_set_file) as f:
             image_index = [x.rstrip('\n') for x in f.readlines()]
+
+        print 'image sets length: ', len(image_index)
         return image_index
 
     def _get_default_path(self):
@@ -264,7 +266,7 @@ class kitti_mv3d(datasets.imdb):
             # convert 8 corners(cam) to  lidar boxes3D
             boxes3D_lidar[ix, :] = lidar_cnr_to_3d(boxes3D_corners[ix, :], lwh[ix,:])
             # convert 8 corners(lidar) to lidar bird view
-            boxes_bv[ix, :] = lidar_cnr_to_bv_single(boxes3D_corners[ix, :])
+            boxes_bv[ix, :] = lidar_3d_to_bv(boxes3D_lidar[ix, :])
             # boxes3D_corners[ix, :] = lidar_to_corners_single(boxes3D_lidar[ix, :])
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
@@ -288,7 +290,6 @@ class kitti_mv3d(datasets.imdb):
         overlaps = scipy.sparse.csr_matrix(overlaps)
         # if index == '000142':
         #     print(overlaps)
-
 
         return {'ry' : rys,
                 'lwh' : lwh,
