@@ -89,7 +89,7 @@ class MV3D_train(Network):
              .conv(1,1,len(anchor_scales)*2*2 ,1 , 1, padding='VALID', relu = False, name='rpn_cls_score'))
 
         (self.feed('rpn_cls_score','gt_boxes_bv', 'gt_boxes_3d', 'im_info')
-             .anchor_target_layer(_feat_stride[0], anchor_scales, name = 'rpn-data' )) # 4 downsample
+             .anchor_target_layer(_feat_stride[0], anchor_scales, name = 'rpn_data' )) # 4 downsample
 
         # Loss of rpn_cls & rpn_boxes
         # ancho_num * xyzhlw
@@ -122,11 +122,11 @@ class MV3D_train(Network):
         (self.feed('roi_data_3d')
              .proposal_transform(target='bv', name='roi_data_bv'))
 
-        # (self.feed('conv5_3')
-        #      .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
+        (self.feed('conv5_3')
+             .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
 
-        # (self.feed('conv5_3_2')
-        #      .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
+        (self.feed('conv5_3_2')
+             .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
 
         #========= RoI Proposal ============
 
@@ -151,18 +151,18 @@ class MV3D_train(Network):
             #  .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 
         # lidar_bv
-        # (self.feed('deconv_4x_1', 'roi_data_bv')
-        (self.feed('conv5_3', 'roi_data_bv')
-             .roi_pool(7, 7, 1.0/_feat_stride[0], name='pool_5')
+        (self.feed('deconv_4x_1', 'roi_data_bv')
+        # (self.feed('conv5_3', 'roi_data_bv')
+             .roi_pool(7, 7, 1.0/2, name='pool_5')
              .fc(2048, name='fc6_1')
              .dropout(self.keep_prob, name='drop6'))
              #  .fc(2048, name='fc7_1')
               # .dropout(self.keep_prob, name='drop7'))
 
         # image
-        # (self.feed('deconv_2x_2', 'roi_data_img')
-        (self.feed('conv5_3_2', 'roi_data_img')
-             .roi_pool(7, 7, 1.0/_feat_stride[1], name='pool_5')
+        (self.feed('deconv_2x_2', 'roi_data_img')
+        # (self.feed('conv5_3_2', 'roi_data_img')
+             .roi_pool(7, 7, 1.0/4, name='pool_5')
              .fc(2048, name='fc6_2')
              .dropout(self.keep_prob, name='drop6_1'))
              #  .fc(2048, name='fc7_2')
