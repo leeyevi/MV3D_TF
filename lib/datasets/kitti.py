@@ -13,7 +13,7 @@ import subprocess
 import cPickle
 from fast_rcnn.config import cfg
 import math
-from rpn_msr.generate_anchors import generate_anchors
+from rpn_msr.generate_anchors import generate_anchors_bv
 
 class kitti(datasets.imdb):
     def __init__(self, image_set, kitti_path=None):
@@ -21,10 +21,11 @@ class kitti(datasets.imdb):
         self._image_set = image_set
         self._kitti_path = self._get_default_path() if kitti_path is None \
                             else kitti_path
-        self._data_path = os.path.join(self._kitti_path, 'data_object_image_2')
+        self._data_path = os.path.join(self._kitti_path, 'object')
         self._classes = ('__background__', 'Car', 'Pedestrian', 'Cyclist')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.png'
+        self._lidar_ext = '.npy'
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
         if cfg.IS_RPN:
@@ -364,13 +365,15 @@ class kitti(datasets.imdb):
                         self._num_boxes_covered[i] += len(np.where(gt_classes[index_covered] == i)[0])
             else:
                 assert len(cfg.TRAIN.SCALES_BASE) == 1
-                scale = cfg.TRAIN.SCALES_BASE[0]
-                feat_stride = 16
+                #  scale = cfg.TRAIN.SCALES_BASE[0]
+                scale = 1.0
+                feat_stride = 4
                 # faster rcnn region proposal
-                base_size = 16
-                ratios = [3.0, 2.0, 1.5, 1.0, 0.75, 0.5, 0.25]
-                scales = 2**np.arange(1, 6, 0.5)
-                anchors = generate_anchors(base_size, ratios, scales)
+                # base_size = 16
+                # ratios = [3.0, 2.0, 1.5, 1.0, 0.75, 0.5, 0.25]
+                # scales = 2**np.arange(1, 6, 0.5)
+                #  anchors = generate_anchors(base_size, ratios, scales)
+                anchors = generate_anchors_bv()
                 num_anchors = anchors.shape[0]
 
                 # image size
@@ -380,12 +383,12 @@ class kitti(datasets.imdb):
 
                 # height and width of the heatmap
                 height = np.round((image_height * scale - 1) / 4.0 + 1)
-                height = np.floor((height - 1) / 2 + 1 + 0.5)
-                height = np.floor((height - 1) / 2 + 1 + 0.5)
+                height = np.floor((height - 1) * 0.5 + 1 + 0.5)
+                #  height = np.floor((height - 1) * 0.5 + 1 + 0.5)
 
                 width = np.round((image_width * scale - 1) / 4.0 + 1)
-                width = np.floor((width - 1) / 2.0 + 1 + 0.5)
-                width = np.floor((width - 1) / 2.0 + 1 + 0.5)
+                width = np.floor((width - 1) * 0.5 + 1 + 0.5)
+                #  width = np.floor((width - 1) * 0.5 + 1 + 0.5)
 
                 # gt boxes
                 gt_boxes = boxes * scale

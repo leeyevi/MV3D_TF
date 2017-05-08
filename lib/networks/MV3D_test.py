@@ -2,7 +2,7 @@ import tensorflow as tf
 from networks.network import Network
 
 n_classes = 2
-_feat_stride = [4,]
+_feat_stride = [8, 8]
 anchor_scales = [1, 1]
 
 class MV3D_test(Network):
@@ -83,7 +83,7 @@ class MV3D_test(Network):
              .reshape_layer(len(anchor_scales)*2*2,name = 'rpn_cls_prob_reshape'))
 
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info','calib')
-             .proposal_layer_3d(_feat_stride, 'TEST', name = 'rois'))
+             .proposal_layer_3d(_feat_stride[0], 'TEST', name = 'rois'))
 
         (self.feed('rois')
              .proposal_transform(target='img', name='roi_data_img'))
@@ -92,23 +92,23 @@ class MV3D_test(Network):
 
 
         # deconv
-        (self.feed('conv5_3')
-              .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
+        # (self.feed('conv5_3')
+        #       .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
 
-        (self.feed('conv5_3_2')
-              .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
+        # (self.feed('conv5_3_2')
+        #       .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
 
         #========= RoI Proposal ============
         # lidar_bv
-        (self.feed('deconv_4x_1', 'rois')
-        # (self.feed('conv5_3', 'rois')
-             .roi_pool(7, 7, 1.0/2, name='pool_5')
+        # (self.feed('deconv_4x_1', 'rois')
+        (self.feed('conv5_3', 'rois')
+             .roi_pool(7, 7, 1.0/_feat_stride[0], name='pool_5')
              .fc(2048, name='fc6_1'))
 
         # image
-        (self.feed('deconv_2x_2', 'rois')
-        # (self.feed('conv5_3_2', 'rois')
-             .roi_pool(7, 7, 1.0/4, name='pool_5')
+        # (self.feed('deconv_2x_2', 'rois')
+        (self.feed('conv5_3_2', 'rois')
+             .roi_pool(7, 7, 1.0/_feat_stride[1], name='pool_5')
              .fc(2048, name='fc6_2'))
 
         # fusion

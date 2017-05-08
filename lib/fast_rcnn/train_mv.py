@@ -21,8 +21,8 @@ import time
 
 # DEBUG = True
 DEBUG = False
-# vis = True
-vis = False
+vis = True
+# vis = False
 
 class SolverWrapper(object):
     """A simple wrapper around Caffe's solver.
@@ -169,9 +169,9 @@ class SolverWrapper(object):
         #                                 cfg.TRAIN.STEPSIZE, 0.1, staircase=True)
         #  momentum = cfg.TRAIN.MOMENTUM
         #  train_op = tf.train.MomentumOptimizer(lr, momentum).minimize(loss, global_step=global_step)
-        lr = 0.001
-        train_op = tf.train.GradientDescentOptimizer(lr).minimize(loss)
-        # train_op = tf.train.AdamOptimizer(lr).minimize(loss)
+        lr = 0.0001
+        # train_op = tf.train.GradientDescentOptimizer(lr).minimize(loss)
+        train_op = tf.train.AdamOptimizer(lr).minimize(loss)
 
 
         # iintialize variables
@@ -192,7 +192,7 @@ class SolverWrapper(object):
             feed_dict={self.net.image_data: blobs['image_data'],
                        self.net.lidar_bv_data: blobs['lidar_bv_data'],
                        self.net.im_info: blobs['im_info'],
-                       self.net.keep_prob: 1,
+                       self.net.keep_prob: 0.5,
                        self.net.gt_boxes: blobs['gt_boxes'],
                        self.net.gt_boxes_bv: blobs['gt_boxes_bv'],
                        self.net.gt_boxes_3d: blobs['gt_boxes_3d'],
@@ -222,8 +222,8 @@ class SolverWrapper(object):
                 trace_file.write(trace.generate_chrome_trace_format(show_memory=False))
                 trace_file.close()
 
-            if DEBUG:
-                cfg.TRAIN.DISPLAY = 1
+            # if DEBUG:
+            cfg.TRAIN.DISPLAY = 1
 
             if (iter+1) % (cfg.TRAIN.DISPLAY) == 0:
                 print 'iter: %d / %d, total loss: %.4f, rpn_loss_cls: %.4f, rpn_loss_box: %.4f, loss_cls: %.4f, loss_box: %.4f, lr: %f'%\
@@ -278,11 +278,11 @@ def vis_detections(lidar_bv, image, calib, bbox_pred_cnr, rpn_data, rpn_rois, rc
     plt.show()
 
     # visualize proposal_layer output
-    boxes_3d = rcnn_roi[4][:, 1:7]
-    boxes_bv = rcnn_roi[0][:, 0:5]
-    boxes_img = rcnn_roi[1][:, 0:5]
+    boxes_3d = rpn_rois[2][:, 1:7]
+    boxes_bv = rpn_rois[0][:, 0:5]
+    boxes_img = rpn_rois[1][:, 0:5]
 
-    
+
     # keep = nms(boxes_img, cfg.TEST.NMS)
     # boxes_img = boxes_img[keep]
     # boxes_3d = boxes_3d[keep]

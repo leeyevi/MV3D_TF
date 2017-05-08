@@ -416,11 +416,11 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
 
 
     # print rpn_cls_prob.shape
-    # # print rpn_cls_prob[:10]
+    # print rpn_cls_prob[:10]
     # print rpn_cls_prob_reshape.shape
-    # print rpn_cls_prob_reshape.reshape((-1, 8))[:10]
+    print rpn_cls_prob_reshape.reshape((-1, 8))[:10]
     # print rpn_cls_score_reshape.reshape((-1, 2))[:401]
-    #  print "cls :", cls_score[:10]
+    print "cls :", cls_prob[:10]
     #  print "rois", len(rois)
     #  print rois[1][:5]
     #  print "bbox_pred_cnr: ", bbox_pred_cnr[0]
@@ -544,7 +544,16 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
     # deconv2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="deconv_4x_1")
     # sess.run(tf.variables_initializer([deconv1[0], deconv1[1], deconv2[0], deconv2[1]], name='init'))
     # print deconv1[0].eval(session = sess)[0]
-    # conv5_3 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv5_3")[0]
+    rpn_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_conv/3x3")[0]
+    rpn_b = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_conv/3x3")[1]
+    rpn = {
+    'rpn_conv/3x3' : {"weights" : rpn_w.eval(session=sess), "biases": rpn_b.eval(session=sess)}
+    }
+    # print rpn_w.eval(session=sess)
+    # print rpn
+    np.save('rpn_data.npy', rpn)
+    print "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
+    # print np.load('rpn_data.npy')
     # print conv5_3.eval(session=sess)
 
     # deconv2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="deconv_4x_1")[0]
@@ -584,7 +593,7 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
             plt.cla()
             plt.imshow(image)
 
-        thresh = 0.35
+        thresh = 0.7
         # print scores[:50]
         # skip j = 0, because it's the background class
         for j in xrange(1, imdb.num_classes):
@@ -612,14 +621,14 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
                 plt.rcParams['figure.figsize'] = (10, 10)
 
                 print cls_dets_cnr.shape
-                order = cls_scores.ravel().argsort()[::-1]
-                order = order[:100]
-                image_bv = show_image_boxes(bv[:,:,8], cls_dets[order, :4])
-                image_cnr = show_lidar_corners(im, cls_dets_cnr[order,:24], calib)
+                # order = cls_scores.ravel().argsort()[::-1]
+                # order = order[:100]
+                image_bv = show_image_boxes(bv[:,:,8], cls_dets[:, :4])
+                image_cnr = show_lidar_corners(im, cls_dets_cnr[:,:24], calib)
 
-                plt.title('proposal_layer ')
 
                 plt.subplot(211)
+                plt.title('proposal_layer ')
                 plt.imshow(image_bv, cmap='gray')
                 plt.subplot(212)
                 plt.imshow(image_cnr)

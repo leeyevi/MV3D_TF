@@ -23,7 +23,8 @@ def prepare_roidb(imdb):
     #  sizes = [PIL.Image.open(imdb.image_path_at(i)).size
              #  for i in xrange(imdb.num_images)]
     # sizes = [np.load(imdb.lidar_path_at(i)).shape for i in xrange(imdb.num_images)]
-    sizes = [704, 801]
+    sizes = [703, 801]
+    # sizes = [401, 401]
     roidb = imdb.roidb
 
     # TODO: choose i from imageset

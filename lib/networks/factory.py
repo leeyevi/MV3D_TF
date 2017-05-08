@@ -31,7 +31,7 @@ def get_network(name):
        return MV3D_train()
     else:
        raise KeyError('Unknown dataset: {}'.format(name))
-    
+
 
 def list_networks():
     """List all registered imdbs."""
