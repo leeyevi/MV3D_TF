@@ -66,8 +66,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     nms_thresh    = cfg[cfg_key].RPN_NMS_THRESH
     min_size      = cfg[cfg_key].RPN_MIN_SIZE
 
-    pre_nms_topN = 6000
-    post_nms_topN = 100
+    # pre_nms_topN = 6000
+    # post_nms_topN = 100
 
     # if DEBUG:
     #     print 'pre_nms_topN', pre_nms_topN
