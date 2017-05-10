@@ -361,9 +361,7 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
                                              net.get_output('cls_prob'),
                                              net.get_output('bbox_pred'),
                                              net.get_output('rois')],
-                                             feed_dict=feed_dict,
-                                             options=run_options,
-                                             run_metadata=run_metadata)
+                                             feed_dict=feed_dict)
 
     scores = cls_prob
 
@@ -421,9 +419,9 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
 
     # !! Important
     # ! Not apply corner regression
-    # pred_boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
+    pred_boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
     # apply corner regression
-    pred_boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
+    # pred_boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
 
 
     #  preject corners to lidar_bv
@@ -620,8 +618,8 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
 
 
                 plt.subplot(211)
-                plt.title('proposal_layer ')
-                plt.imshow(image_bv, cmap='gray')
+                plt.title('bv proposal')
+                plt.imshow(image_bv, cmap='jet')
                 plt.subplot(212)
                 plt.imshow(image_cnr)
                 plt.show()
