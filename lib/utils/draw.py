@@ -49,3 +49,9 @@ def show_image_boxes(test_image, img_boxes):
         x1,y1,x2,y2 = img_boxes[n]
         cv2.rectangle(test,(x1,y1), (x2,y2), (255,255,0), 2)
     return test
+
+def scale_to_255(a, min, max, dtype=np.uint8):
+    """ Scales an array of values from specified min, max range to 0-255
+        Optionally specify the data type of the output (default is uint8)
+    """
+    return (((a - min) / float(max - min)) * 255).astype(dtype)

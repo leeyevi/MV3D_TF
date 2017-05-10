@@ -81,7 +81,6 @@ if __name__ == '__main__':
 
     network = get_network(args.network_name)
     print 'Use network `{:s}` in training'.format(args.network_name)
-    print network.layers
 
     if args.device == 'gpu':
         cfg.USE_GPU_NMS = True
@@ -90,17 +89,19 @@ if __name__ == '__main__':
         cfg.USE_GPU_NMS = False
 
     # start a session
-    # saver = tf.train.Saver()
     print "=================="
     print args.model[:-5]
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
-    sess.run(tf.global_variables_initializer())
-    saver = tf.train.import_meta_graph(args.model)
-    saver.restore(sess, args.model[:-5])
 
-    # saver.restore(sess, args.model)
+    saver = tf.train.Saver(max_to_keep=5)
+    network.load(args.model, sess, saver, True)
+    # sess.run(tf.global_variables_initializer())
+    # saver = tf.train.import_meta_graph(args.model)
+    # saver.restore(sess, args.model[:-5])
+
+    # print([v.op.name for v in tf.global_variables()])
     print ('Loading model weights from {:s}').format(args.model)
 
-    print '==============='
-    # print network
+
+
     test_net(sess, network, imdb, weights_filename)

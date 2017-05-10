@@ -28,13 +28,13 @@ LOG="experiments/logs/mv3d_end2end_.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
 exec &> >(tee -a "$LOG")
 echo Logging output to "$LOG"
 
-# time python ./tools/train_net.py --device ${DEV} --device_id ${DEV_ID} \
-  # --weights ${WEIGHTS}\
-  # --imdb ${DATASET} \
-  # --iters 10001\
-  # --cfg experiments/cfgs/faster_rcnn_end2end.yml \
-  # --network MV3D_train \
-  # ${EXTRA_ARGS}
+time python ./tools/train_net.py --device ${DEV} --device_id ${DEV_ID} \
+  --weights ${WEIGHTS}\
+  --imdb ${DATASET} \
+  --iters 50001\
+  --cfg experiments/cfgs/faster_rcnn_end2end.yml \
+  --network MV3D_train \
+  ${EXTRA_ARGS}
 
   # --weights data/pretrain_model/vgg_imagenet_sampled.npy \
 set +x

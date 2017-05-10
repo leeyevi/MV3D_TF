@@ -6,10 +6,10 @@ import cv2
 from utils.cython_nms import nms, nms_new
 from utils.boxes_grid import get_boxes_grid
 from utils.transform import lidar_3d_to_corners, corners_to_bv, lidar_cnr_to_img_single, lidar_cnr_to_img
-from utils.draw import show_lidar_corners, show_image_boxes
+from utils.draw import show_lidar_corners, show_image_boxes, scale_to_255
 import cPickle
 import heapq
-from utils.blob import im_list_to_blob, lidar_list_to_blob
+from utils.blob import im_list_to_blob
 import os
 import math
 from rpn_msr.generate import imdb_proposals_det
@@ -18,6 +18,7 @@ from fast_rcnn.bbox_transform import clip_boxes, bbox_transform_inv, bbox_transf
 import matplotlib.pyplot as plt
 from tensorflow.python.client import timeline
 import time
+
 
 def _get_image_blob(im):
     """Converts an image into a network input.
@@ -325,8 +326,7 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
     """
 
 
-    # im_blob = im / 127.0 - 1
-    im_blob = im
+    im_blob = im - cfg.PIXEL_MEANS
     lidar_bv_blob = bv
 
     im_blob = im_blob.reshape((1, im_blob.shape[0], im_blob.shape[1], im_blob.shape[2]))
@@ -335,7 +335,6 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
     blobs = {'image_data': im_blob,
              'lidar_bv_data': lidar_bv_blob}
 
-    # blobs, im_scales = _get_blobs(im, bv, boxes)
     im_scales = [1]
 
     blobs['calib'] = calib
@@ -350,15 +349,10 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
                net.calib: blobs['calib'],
                net.keep_prob: 1.0}
 
-    run_options = None
-    run_metadata = None
-    if cfg.TEST.DEBUG_TIMELINE:
-        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-        run_metadata = tf.RunMetadata()
 
-    conv5_3, rpn_cls_prob, rpn_cls_prob_reshape, rpn_cls_score_reshape, rpn_cls_score, cls_score, cls_prob, bbox_pred_cnr, rois = sess.run([
-                                             net.get_output('conv5_3'),
-                                             # net.get_output('deconv_2x_1'),
+    conv5_3, deconv, rpn_cls_prob, rpn_cls_prob_reshape, rpn_cls_score_reshape, rpn_cls_score, cls_score, cls_prob, bbox_pred_cnr, rois = sess.run([
+                                             net.get_output('conv5_3_2'),
+                                             net.get_output('deconv_2x_2'),
                                              net.get_output('rpn_cls_prob'),
                                              net.get_output('rpn_cls_prob_reshape'),
                                              net.get_output('rpn_cls_score_reshape'),
@@ -371,96 +365,71 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
                                              options=run_options,
                                              run_metadata=run_metadata)
 
-
-    # print bv[0,350:400,:]
-
     scores = cls_prob
 
+    # plot featuremaps
+
     # print conv5_3.shape
-    # print deconv1.shape
-
-    # shape1 = conv5_3.shape
-    # shape2 = deconv1.shape
-
-    # conv5_3 = conv5_3.reshape((shape1[1], shape1[2], shape1[3]))
-
-    # plt.subplot(211)
-    # plt.imshow(conv5_3[:,:,-3:]*255)
-
-
-    # deconv1 = deconv1.reshape((shape2[1], shape2[2], shape2[3]))
-
-    # print deconv1[0,50:100,:]
-    # plt.subplot(211)
-    # plt.imshow(deconv1[:,:,-3:]*255)
-    # plt.subplot(212)
-    # plt.imshow(blobs['lidar_bv_data'][0,:,:,9])
+    # # print deconv1.shape
+    # activation = conv5_3
+    # # featuremaps = activation.shape[3]
+    # featuremaps = 48
+    # plt.figure(1, figsize=(15,15))
+    # for featuremap in range(featuremaps):
+    #     plt.subplot(6,8, featuremap+1) # sets the number of feature maps to show on each row and column
+    #     # plt.title('FeatureMap ' + str(featuremap)) # displays the feature map number
+    #     plt.axis('off')
+    #     plt.imshow(activation[0,:,:, featuremap], interpolation="nearest", cmap="jet")
+    # plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.01, hspace=0.01)
+    # plt.tight_layout(pad=0.1, h_pad=0.001, w_pad=0.001)
     # plt.show()
-    # print deconv1[0,:10]
 
-    # print conv5_3[0,0,0,:10]
-    # print deconv1[0,173,199,:10]
-
-    print "scores: ", np.max(scores)
-    print np.min(scores[1,:])
-
-    # print scores[np.random.randint(0, high=800, size=20)]
-    # print rpn_cls_score.shape
-    shape = rpn_cls_score.shape
-    # print rpn_cls_score[0,0,0,:]
-    rpn_cls_score = rpn_cls_score.reshape((-1, 4))
-    # print rpn_cls_score[:12]
-    # print rpn_cls_score_reshape.shape
-    # print rpn_cls_score_reshape[0,0,0,:]
-    # print rpn_cls_score_reshape[0,0,0,:]
+    # activation = deconv
+    # print deconv.shape
+    # # featuremaps = activation.shape[3]
+    # featuremaps = 48
+    # plt.figure(1, figsize=(15,15))
+    # for featuremap in range(featuremaps):
+    #     plt.subplot(6,8, featuremap+1) # sets the number of feature maps to show on each row and column
+    #     # plt.title('FeatureMap ' + str(featuremap)) # displays the feature map number
+    #     plt.axis('off')
+    #     plt.imshow(activation[0,:,:, featuremap], interpolation="nearest", cmap="jet")
+    # plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.01, hspace=0.01)
+    # plt.tight_layout(pad=0.1, h_pad=0.001, w_pad=0.001)
+    # plt.show()
 
 
-    # print rpn_cls_prob.shape
-    # print rpn_cls_prob[:10]
-    # print rpn_cls_prob_reshape.shape
-    print rpn_cls_prob_reshape.reshape((-1, 8))[:10]
-    # print rpn_cls_score_reshape.reshape((-1, 2))[:401]
-    print "cls :", cls_prob[:10]
-    #  print "rois", len(rois)
-    #  print rois[1][:5]
-    #  print "bbox_pred_cnr: ", bbox_pred_cnr[0]
-    #  print ""
 
+    # print cls_score[np.where(cls_score[:,1] > 0)]
+    # plt.hist(cls_score[:,1], bins=25)
+    # plt.show()
+    # plt.hist(scores[:,1], bins=25)
+    # plt.show()
 
     assert len(im_scales) == 1, "Only single-image batch implemented"
-    boxes_3d = rois[2][:, 1:7] / im_scales[0]
-
-    # boxes_3d[:,0] = 70.2 - boxes_3d[:,0]
-    # boxes_3d[:,1] =  - boxes_3d[:,1]
+    boxes_3d = rois[2][:, 1:7]
 
     # Apply bounding-box regression deltas
     box_deltas = bbox_pred_cnr
-    #  print 'boxes_3d', boxes_3d
     boxes_cnr = lidar_3d_to_corners(boxes_3d)
-    #  boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
-    # print box_deltas[0, 24:] * 2
+
+    # img_boxes = lidar_cnr_to_img(boxes_cnr, calib[3], calib[2], calib[0])
+    # img = show_image_boxes(im, img_boxes)
+    # plt.imshow(img)
+    # plt.show()
+
+
+    # !! Important
+    # ! Not apply corner regression
+    # pred_boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
+    # apply corner regression
     pred_boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
-    #  print "boxes_cnr: ", boxes_cnr[0]
-    # print "pred_boxes_cnr: ", pred_boxes_cnr[0]
-    # pred_boxes = _clip_boxes(pred_boxes, im.shape)
-    # print pred_boxes_cnr.shape
-    # print pred_boxes_cnr[0, 24:] - boxes_cnr[0,:]
+
 
     #  preject corners to lidar_bv
     pred_boxes_bv = corners_to_bv(pred_boxes_cnr)
-    #  pred_boxes_bv = np.hstack((pred_boxes_bv, pred_boxes_bv))
-    #  pred_boxes_bv = rois[0]
-    #  print pred_boxes_cnr.shape
-    #  print pred_boxes_bv.shape
-    #  pred_boxes_img = lidar_cnr_to_img(pred_boxes_cnr, calib[3], calib[2,:9], calib[0])
 
-    # if cfg.TEST.DEBUG_TIMELINE:
-    #     trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-    #     trace_file = open(str(long(time.time() * 1000)) + '-test-timeline.ctf.json', 'w')
-    #     trace_file.write(trace.generate_chrome_trace_format(show_memory=False))
-    #     trace_file.close()
 
-    #  return scores, pred_boxes_bv, pred_boxes_img, pred_boxes_cnr
     return scores, pred_boxes_bv, pred_boxes_cnr
 
 def vis_detections(im, class_name, dets, thresh=0.8):
@@ -537,24 +506,50 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
     # timers
     _t = {'im_detect' : Timer(), 'misc' : Timer()}
 
-    # with tf.variable_scope('deconv_2x_1'):
-        # bar1 = tf.get_variable("bar", (2,3)) # create
-    #  deconv1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv1_2")
-    #  print deconv1[0].eval(session = sess)
-    # deconv2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="deconv_4x_1")
-    # sess.run(tf.variables_initializer([deconv1[0], deconv1[1], deconv2[0], deconv2[1]], name='init'))
-    # print deconv1[0].eval(session = sess)[0]
-    rpn_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_conv/3x3")[0]
-    rpn_b = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_conv/3x3")[1]
-    rpn = {
-    'rpn_conv/3x3' : {"weights" : rpn_w.eval(session=sess), "biases": rpn_b.eval(session=sess)}
-    }
-    # print rpn_w.eval(session=sess)
-    # print rpn
-    np.save('rpn_data.npy', rpn)
-    print "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
-    # print np.load('rpn_data.npy')
-    # print conv5_3.eval(session=sess)
+
+    # conv1_1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv1_1")
+    # conv1_2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv1_2")
+    # conv2_1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv2_1")
+    # conv2_2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv2_2")
+    # conv3_1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv3_1")
+    # conv3_2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv3_2")
+    # conv3_3 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv3_3")
+    # conv4_1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv4_1")
+    # conv4_2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv4_2")
+    # conv4_3 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv4_3")
+    # conv5_1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv5_1")
+    # conv5_2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv5_2")
+    # conv5_3 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="conv5_3")
+
+    # rpn_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_conv/3x3")[0]
+    # rpn_b = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_conv/3x3")[1]
+    # rpn_w2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_cls_score")[0]
+    # rpn_b2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_cls_score")[1]
+    # rpn_w3 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_bbox_pred")[0]
+    # rpn_b3 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="rpn_bbox_pred")[1]
+
+    # weights = {
+    # 'conv1_1' : {"weights" : conv1_1[0].eval(session=sess), "biases": conv1_1[1].eval(session=sess)},
+    # 'conv1_2' : {"weights" : conv1_2[0].eval(session=sess), "biases": conv1_2[1].eval(session=sess)},
+    # 'conv2_1' : {"weights" : conv2_1[0].eval(session=sess), "biases": conv2_1[1].eval(session=sess)},
+    # 'conv2_2' : {"weights" : conv2_2[0].eval(session=sess), "biases": conv2_2[1].eval(session=sess)},
+    # 'conv3_1' : {"weights" : conv3_1[0].eval(session=sess), "biases": conv3_1[1].eval(session=sess)},
+    # 'conv3_2' : {"weights" : conv3_2[0].eval(session=sess), "biases": conv3_2[1].eval(session=sess)},
+    # 'conv3_3' : {"weights" : conv3_3[0].eval(session=sess), "biases": conv3_3[1].eval(session=sess)},
+    # 'conv4_1' : {"weights" : conv4_1[0].eval(session=sess), "biases": conv4_1[1].eval(session=sess)},
+    # 'conv4_2' : {"weights" : conv4_2[0].eval(session=sess), "biases": conv4_2[1].eval(session=sess)},
+    # 'conv4_3' : {"weights" : conv4_3[0].eval(session=sess), "biases": conv4_3[1].eval(session=sess)},
+    # 'conv5_1' : {"weights" : conv5_1[0].eval(session=sess), "biases": conv5_1[1].eval(session=sess)},
+    # 'conv5_2' : {"weights" : conv5_2[0].eval(session=sess), "biases": conv5_2[1].eval(session=sess)},
+    # 'conv5_3' : {"weights" : conv5_3[0].eval(session=sess), "biases": conv5_3[1].eval(session=sess)},
+
+    # 'rpn_conv/3x3' : {"weights" : rpn_w.eval(session=sess), "biases": rpn_b.eval(session=sess)},
+    # 'rpn_cls_score' : {"weights" : rpn_w2.eval(session=sess), "biases": rpn_b2.eval(session=sess)},
+    # 'rpn_bbox_pred' : {"weights" : rpn_w3.eval(session=sess), "biases": rpn_b3.eval(session=sess)},
+    # }
+    # # print rpn_w.eval(session=sess)
+    # np.save('rpn_data.npy', weights)
+
 
     # deconv2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="deconv_4x_1")[0]
     # shape_conv5_3 = conv5_3.get_shape().as_list()
@@ -566,21 +561,17 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
 
 
     for i in xrange(num_images):
-    # for i in xrange(1):
+
         # filter out any ground truth boxes
         if cfg.TEST.HAS_RPN:
             box_proposals = None
-
-        # _t['im_detect'].tic()
-        # scores, boxes = im_detect(sess, net, im, box_proposals)
-        # _t['im_detect'].toc()
 
         im = cv2.imread(imdb.image_path_at(i))
         bv = np.load(imdb.lidar_path_at(i))
         calib = imdb.calib_at(i)
 
         print "Inference: ", imdb.lidar_path_at(i)
-        # print np.where(bv != 0)
+
 
         _t['im_detect'].tic()
         scores, boxes_bv, boxes_cnr = box_detect(sess, net, im, bv, calib,  box_proposals)
@@ -593,8 +584,8 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
             plt.cla()
             plt.imshow(image)
 
-        thresh = 0.7
-        # print scores[:50]
+        thresh = 0.05
+
         # skip j = 0, because it's the background class
         for j in xrange(1, imdb.num_classes):
             inds = np.where(scores[:, j] > thresh)[0]
@@ -605,25 +596,26 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
                 .astype(np.float32, copy=False)
             cls_dets_cnr = np.hstack((cls_boxes_cnr, cls_scores[:, np.newaxis])) \
                 .astype(np.float32, copy=False)
-            # print "scores: ", cls_scores[-20:]
-            # print "boxes_bv: ", boxes_bv
-            # print " cls_boxes", cls_boxes
-            # print cls_boxes_cnr[:10]
-            print "cls_dets : ", cls_dets.shape
+            # print "scores: ", cls_scores
+            # print "cls_dets : ", cls_dets.shape
+
             keep = nms(cls_dets, cfg.TEST.NMS)
             cls_dets = cls_dets[keep, :]
             cls_dets_cnr = cls_dets_cnr[keep, :]
             cls_scores = cls_scores[keep]
+
             # project to image
-            # cls_des_img = lidar_cnr_to_img_single(cls_dets_cnr, calib[3], calib[2], calib[0])
             if np.any(cls_dets_cnr):
 
                 plt.rcParams['figure.figsize'] = (10, 10)
 
+                img_boxes = lidar_cnr_to_img(cls_dets_cnr[:,:24], calib[3], calib[2], calib[0])
+                img = show_image_boxes(im, img_boxes)
+                plt.imshow(img)
+                plt.show()
+
                 print cls_dets_cnr.shape
-                # order = cls_scores.ravel().argsort()[::-1]
-                # order = order[:100]
-                image_bv = show_image_boxes(bv[:,:,8], cls_dets[:, :4])
+                image_bv = show_image_boxes(scale_to_255(bv[:,:,8], min=0, max=2), cls_dets[:, :4])
                 image_cnr = show_lidar_corners(im, cls_dets_cnr[:,:24], calib)
 
 
@@ -633,7 +625,7 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
                 plt.subplot(212)
                 plt.imshow(image_cnr)
                 plt.show()
-                # vis_detections(image, imdb.classes[j], cls_dets_img)
+
             all_boxes[j][i] = cls_dets
             # all_boxes_img[j][i] = cls_des_img
             all_boxes_cnr[j][i] = cls_dets_cnr

@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 
 
@@ -113,14 +114,15 @@ def point_cloud_2_top(points,
 
     return top
 
-velodyne = "/sdb-4T/kitti/object/training/velodyne/"
-bird = "/sdb-4T/kitti/object/training/lidar_bv/"
+root_dir = "/sdb-4T/kitti/object/testing"
+velodyne = os.path.join(root_dir, "velodyne/")
+bird = os.path.join(root_dir, "lidar_bv/")
 
-side_range = (-25., 25.)
-fwd_range = (0., 50)
+side_range = (-30., 30.)
+fwd_range = (0., 60)
 height_range = (-2, 0.4) #
 
-for i in range(7400):
+for i in range(400):
     filename = velodyne + str(i).zfill(6) + ".bin"
     print("Processing: ", filename)
     scan = np.fromfile(filename, dtype=np.float32)

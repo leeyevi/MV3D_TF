@@ -1,12 +1,8 @@
 import tensorflow as tf
 from networks.network import Network
 
-#  n_classes = 21
-#  _feat_stride = [16,]
-#  anchor_scales = [8, 16, 32]
-n_classes = 2 # car, pedes, cyclist, dontcare
+n_classes = 2 # background, car
 _feat_stride = [8, 8]
-#  anchor_scales = [0.5, 1, 2]
 anchor_scales = [1.0, 1.0]
 
 class MV3D_train(Network):
@@ -82,17 +78,17 @@ class MV3D_train(Network):
               .conv(3, 3, 512, 1, 1, name='conv5_3_2'))
 
         #========= RPN ============
-                     # 
+
         (self.feed('conv5_3')
              # .deconv(shape=None, c_o=512, stride=2, ksize=3,  name='deconv_2x_1')
              .conv(3,3,512,1,1,name='rpn_conv/3x3')
              .conv(1,1,len(anchor_scales)*2*2 ,1 , 1, padding='VALID', relu = False, name='rpn_cls_score'))
 
         (self.feed('rpn_cls_score','gt_boxes_bv', 'gt_boxes_3d', 'im_info')
-             .anchor_target_layer(_feat_stride[0], anchor_scales, name = 'rpn_data' )) # 4 downsample
+             .anchor_target_layer(_feat_stride[0], anchor_scales, name = 'rpn_data' ))
 
         # Loss of rpn_cls & rpn_boxes
-        # ancho_num * xyzhlw
+        # anchor_num * xyzhlw
         # offset
         (self.feed('rpn_conv/3x3')
              .conv(1,1,len(anchor_scales)*2*6, 1, 1, padding='VALID', relu = False, name='rpn_bbox_pred'))
@@ -112,27 +108,21 @@ class MV3D_train(Network):
         (self.feed('rpn_rois', 'gt_boxes_bv', 'gt_boxes_3d', 'gt_boxes_corners', 'calib')
              .proposal_target_layer_3d(n_classes, name='roi_data_3d'))
             # return
-            # 1. rois: lidar_bv (nx4)
-            # #3. rois: image (nx4)
-            # 4. labels (nx1)
-            # 5. bbox_targets (nx24)
+            # 1. rois: lidar_bv (nx5)
+            # 2. rois: image (nx5)
+            # 3. labels (nx1)
+            # 4. bbox_targets (nx24)
 
         (self.feed('roi_data_3d')
              .proposal_transform(target='img', name='roi_data_img'))
-        (self.feed('roi_data_3d')
-             .proposal_transform(target='bv', name='roi_data_bv'))
+        # (self.feed('roi_data_3d')
+        #      .proposal_transform(target='bv', name='roi_data_bv'))
 
-        (self.feed('conv5_3')
-             .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
+        # (self.feed('conv5_3')
+        #      .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
 
         (self.feed('conv5_3_2')
              .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
-
-        #========= RoI Proposal ============
-
-        #  (self.feed('conv5_3_2')
-             #  .deconv(c_o=256, stride=2, ksize=3, name='deconv_2x_2'))
-        #       #  .roi_pool(7, 7, 1.0/16, name='pool_5_1')
 
         #========= RCNN ============
         # (self.feed('conv5_3', 'roi_data_1')
@@ -151,26 +141,20 @@ class MV3D_train(Network):
             #  .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 
         # lidar_bv
-        (self.feed('deconv_4x_1', 'roi_data_bv')
-        # (self.feed('conv5_3', 'roi_data_bv')
-             .roi_pool(7, 7, 1.0/2, name='pool_5')
-             .fc(2048, name='fc6_1')
-             .dropout(self.keep_prob, name='drop6'))
+        # (self.feed('deconv_4x_1', 'roi_data_bv')
+        # # (self.feed('conv5_3', 'roi_data_bv')
+        #      .roi_pool(7, 7, 1.0/2, name='pool_5')
+        #      .fc(2048, name='fc6_1')
+        #      .dropout(self.keep_prob, name='drop6'))
              #  .fc(2048, name='fc7_1')
               # .dropout(self.keep_prob, name='drop7'))
 
-        # image
+        # only use image
         (self.feed('deconv_2x_2', 'roi_data_img')
         # (self.feed('conv5_3_2', 'roi_data_img')
-             .roi_pool(7, 7, 1.0/4, name='pool_5')
-             .fc(2048, name='fc6_2')
-             .dropout(self.keep_prob, name='drop6_1'))
-             #  .fc(2048, name='fc7_2')
-             #  .dropout(self.keep_prob, name='drop7_2'))
-
-        # fusion
-        (self.feed('drop6', 'drop6_1')
-             .concat(axis=1, name='concat1')
+             .roi_pool(7, 7, 1.0/_feat_stride[0]/2, name='pool_5')
+             .fc(4096, name='fc6')
+             .dropout(self.keep_prob, name='drop6_1')
              .fc(4096, name='fc7')
              .dropout(self.keep_prob, name='drop7')
              .fc(n_classes, relu=False, name='cls_score')

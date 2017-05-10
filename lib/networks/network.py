@@ -239,7 +239,7 @@ class Network(object):
         #if cfg_key == 'TRAIN':
         #    return rpn_rois_bv, rpn_rois_3d
         #else :
-        return rpn_rois_bv, rpn_rois_img, rpn_rois_3d
+        return rpn_rois_bv, rpn_rois_img, rpn_rois_3d, rpn_rois_3d
 
 
     @layer
@@ -266,7 +266,7 @@ class Network(object):
         if isinstance(input[0], tuple):
             input_bv = input[0][0]
             # input_img = input[0][1]
-            input_3d = input[0][2]
+            input_3d = input[0][3]
         with tf.variable_scope(name) as scope:
             # print('dtype',input[0].dtype)
             rois_bv, rois_img, labels,bbox_targets_corners, rois_3d = \
@@ -274,7 +274,7 @@ class Network(object):
 
             rois_bv = tf.reshape(rois_bv,[-1,5] , name = 'rois_bv')
             rois_img = tf.reshape(rois_img,[-1,5] , name = 'rois_img')
-            rois_3d = tf.reshape(rois_3d,[-1,7] , name = 'rois_3d')
+            rois_3d = tf.reshape(rois_3d,[-1,7] , name = 'rois_3d') # for debug
             labels = tf.convert_to_tensor(tf.cast(labels,tf.int32), name = 'labels')
             bbox_targets_corners = tf.convert_to_tensor(bbox_targets_corners, name = 'bbox_targets_corners')
 
@@ -305,35 +305,22 @@ class Network(object):
         if isinstance(input, tuple):
             input_bv = input[0]
             input_img = input[1]
-            
-        #print '++++++', input[0]
-        #print input[1]
 
         if target == 'bv':
 
             with tf.variable_scope(name) as scope:
-                # print('=====================\n')
-                #lidar_bv = tf.py_func(choose, [input_bv], [tf.float32])
-                #lidar_bv = tf.reshape(lidar_bv, [-1, 5], name='lidar_bv')
                 lidar_bv = input_bv
-                print "lidar_bv shape", lidar_bv
-
             return lidar_bv
 
         elif target == 'img':
 
             with tf.variable_scope(name) as scope:
-                # print('=====================\n')
-                #image_proposal = tf.py_func(choose, [input_img], [tf.float32])
-                #image_proposal = tf.reshape(input_img, [-1, 5], name='image_proposal')
                 image_proposal = input_img
-                print "image shape:", image_proposal
-
             return image_proposal
 
         elif target == 'fv':
             # TODO
-            pass
+            return None
 
 
     # @layer

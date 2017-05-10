@@ -21,13 +21,13 @@ Outputs object detection proposals by applying estimated bounding-box
 transformations to a set of regular boxes (called "anchors").
 """
 
-# TODO : support image, lidar_bv, fv proposal
+
 # input
 #  rpn_bbox_pred (nx6)
 # return
 # 1. rois: lidar_bv
 # 4. rois_3d
-def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, _feat_stride = [16,], anchor_scales=[2, 4, 8]):
+def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, _feat_stride = [8,], anchor_scales=[1.0, 1.0]):
     # Algorithm:
     #
     # for each (H, W) location i
@@ -47,14 +47,7 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     #  _anchors = generate_anchors(scales=np.array(anchor_scales))
     _num_anchors = _anchors.shape[0]
 
-    # print 'rpn_cls_prob_reshape: ', rpn_cls_prob_reshape[:, :, :, _num_anchors:]
-    # print 'rpn_bbox_pred: ', rpn_bbox_pred[]
 
-    # rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
-    # rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
-
-    #rpn_cls_prob_reshape = np.transpose(np.reshape(rpn_cls_prob_reshape,[1,rpn_cls_prob_reshape.shape[0],rpn_cls_prob_reshape.shape[1],rpn_cls_prob_reshape.shape[2]]),[0,3,2,1])
-    #rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,2,1])
     im_info = im_info[0]
 
     assert rpn_cls_prob_reshape.shape[0] == 1, \
@@ -66,15 +59,6 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     nms_thresh    = cfg[cfg_key].RPN_NMS_THRESH
     min_size      = cfg[cfg_key].RPN_MIN_SIZE
 
-    # pre_nms_topN = 6000
-    # post_nms_topN = 100
-
-    # if DEBUG:
-    #     print 'pre_nms_topN', pre_nms_topN
-    #     print 'pre_nms_topN', post_nms_topN
-    #     print 'pre_nms_topN', nms_thresh
-    #     print 'pre_nms_topN', min_size
-
     # the first set of _num_anchors channels are bg probs
     # the second set are the fg probs, which we want
     # print rpn_cls_prob_reshape.shape
@@ -83,18 +67,8 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     # scores = rpn_cls_prob_reshape[:, _num_anchors:, :, :]
     scores = np.reshape(np.reshape(rpn_cls_prob_reshape, [1, height, width, _num_anchors, 2])[:,:,:,:,1],[1, height, width, _num_anchors])
 
-    # scores = scores
-
-    # print scores[0,0,:10,:]
-    # print np.max(scores)
-    # print np.min(scores)
-
-    # scores = rpn_cls_prob_reshape[:, :, :, _num_anchors:]
     bbox_deltas = rpn_bbox_pred
 
-    # print scores.shape
-    # print bbox_deltas.shape
-    #im_info = bottom[2].data[0, :]
 
     if DEBUG:
         print 'im_size: ({}, {})'.format(im_info[0], im_info[1])
@@ -102,7 +76,6 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
 
     # 1. Generate proposals from bbox deltas and shifted anchors
     
-    # height, width = scores.shape[-2:]
 
     if DEBUG:
         print 'score map size: {}'.format(scores.shape)

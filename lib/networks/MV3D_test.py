@@ -31,11 +31,11 @@ class MV3D_test(Network):
 
     def setup(self):
         (self.feed('lidar_bv_data')
-             .conv(3, 3, 64, 1, 1, name='conv1_1', trainable=False)
-             .conv(3, 3, 64, 1, 1, name='conv1_2', trainable=False)
+             .conv(3, 3, 64, 1, 1, name='conv1_1')
+             .conv(3, 3, 64, 1, 1, name='conv1_2')
              .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
-             .conv(3, 3, 128, 1, 1, name='conv2_1', trainable=False)
-             .conv(3, 3, 128, 1, 1, name='conv2_2', trainable=False)
+             .conv(3, 3, 128, 1, 1, name='conv2_1')
+             .conv(3, 3, 128, 1, 1, name='conv2_2')
              .max_pool(2, 2, 2, 2, padding='VALID', name='pool2')
              .conv(3, 3, 256, 1, 1, name='conv3_1')
              .conv(3, 3, 256, 1, 1, name='conv3_2')
@@ -49,11 +49,11 @@ class MV3D_test(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
 
         (self.feed('image_data')
-              .conv(3, 3, 64, 1, 1, name='conv1_1_2', trainable=False)
-              .conv(3, 3, 64, 1, 1, name='conv1_2_2', trainable=False)
+              .conv(3, 3, 64, 1, 1, name='conv1_1_2')
+              .conv(3, 3, 64, 1, 1, name='conv1_2_2')
               .max_pool(2, 2, 2, 2, padding='VALID', name='pool1_2')
-              .conv(3, 3, 128, 1, 1, name='conv2_1_2', trainable=False)
-              .conv(3, 3, 128, 1, 1, name='conv2_2_2', trainable=False)
+              .conv(3, 3, 128, 1, 1, name='conv2_1_2')
+              .conv(3, 3, 128, 1, 1, name='conv2_2_2')
               .max_pool(2, 2, 2, 2, padding='VALID', name='pool2_2')
               .conv(3, 3, 256, 1, 1, name='conv3_1_2')
               .conv(3, 3, 256, 1, 1, name='conv3_2_2')
@@ -87,35 +87,35 @@ class MV3D_test(Network):
 
         (self.feed('rois')
              .proposal_transform(target='img', name='roi_data_img'))
-        (self.feed('rois')
-             .proposal_transform(target='bv', name='roi_data_bv'))
+        # (self.feed('rois')
+        #      .proposal_transform(target='bv', name='roi_data_bv'))
 
 
-        # deconv
+        #deconv
         # (self.feed('conv5_3')
         #       .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
 
-        # (self.feed('conv5_3_2')
-        #       .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
+        (self.feed('conv5_3_2')
+             .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
 
         #========= RoI Proposal ============
         # lidar_bv
         # (self.feed('deconv_4x_1', 'rois')
-        (self.feed('conv5_3', 'rois')
-             .roi_pool(7, 7, 1.0/_feat_stride[0], name='pool_5')
-             .fc(2048, name='fc6_1'))
+        # # (self.feed('conv5_3', 'rois')
+        #      .roi_pool(7, 7, 1.0/2, name='pool_5')
+        #      .fc(2048, name='fc6_1'))
 
         # image
-        # (self.feed('deconv_2x_2', 'rois')
-        (self.feed('conv5_3_2', 'rois')
-             .roi_pool(7, 7, 1.0/_feat_stride[1], name='pool_5')
-             .fc(2048, name='fc6_2'))
+        (self.feed('deconv_2x_2', 'roi_data_img')
+        # (self.feed('conv5_3_2', 'roi_data_img')
+             .roi_pool(7, 7, 1.0/4, name='pool_5')
+             .fc(4096, name='fc6'))
 
         # fusion
-        (self.feed('fc6_1', 'fc6_2')
-             .concat(axis=1, name='concat1')
-             .fc(4096, name='fc7')
-             .fc(n_classes, relu=False, name='cls_score')
+        (self.feed('fc6')
+             # .concat(axis=1, name='concat1')
+             .fc(4096, relu=False, name='fc7')
+             .fc(n_classes, name='cls_score')
              .softmax(name='cls_prob'))
 
         (self.feed('fc7')

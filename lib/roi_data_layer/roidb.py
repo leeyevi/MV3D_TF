@@ -23,7 +23,7 @@ def prepare_roidb(imdb):
     #  sizes = [PIL.Image.open(imdb.image_path_at(i)).size
              #  for i in xrange(imdb.num_images)]
     # sizes = [np.load(imdb.lidar_path_at(i)).shape for i in xrange(imdb.num_images)]
-    sizes = [703, 801]
+    # sizes = [703, 801]
     # sizes = [401, 401]
     roidb = imdb.roidb
 
@@ -37,8 +37,8 @@ def prepare_roidb(imdb):
             continue
         roidb[i]['image_path'] = imdb.image_path_at(i)
         roidb[i]['lidar_bv_path'] = imdb.lidar_path_at(i)
-        roidb[i]['width'] = sizes[1]#sizes[i][1]
-        roidb[i]['height'] = sizes[0]#sizes[i][0]
+        # roidb[i]['width'] = sizes[1]#sizes[i][1]
+        # roidb[i]['height'] = sizes[0]#sizes[i][0]
         roidb[i]['calib'] = imdb.calib_at(i)
         # print(imdb.image_path_at[i])
         # need gt_overlaps as a dense array for argmax

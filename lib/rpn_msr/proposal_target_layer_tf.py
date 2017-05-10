@@ -14,18 +14,8 @@ from utils.cython_bbox import bbox_overlaps
 from utils.transform import lidar_3d_to_corners, lidar_to_bv, lidar_cnr_to_img
 import pdb
 
-DEBUG = True
+DEBUG = False
 
-# TODO : generate corners targets
-# receive:
-# 1. rois: lidar_bv (nx4)
-# 4. rois_3d (nx6)
-# 5. gt_boxes_corners
-# return
-# 1. rois: lidar_bv (nx4)
-# 3. rois: image (nx4)
-# 4. labels (nx1)
-# 5. bbox_targets (nx24)
 def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d, gt_boxes_corners, calib, _num_classes):
     """
     Assign object detection proposals to ground-truth targets. Produces proposal
@@ -53,9 +43,7 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
     all_rois_3d = np.vstack(
         (rpn_rois_3d, np.hstack((zeros, gt_boxes_3d[:, :-1])))
     )
-    # all_rois_img = np.vstack(
-    #     (rpn_rois_img, np.hstack((zeros, gt_boxes_3d[:, :-1])))
-    # )
+
     if DEBUG:
         print "rpn rois 3d shape: ", rpn_rois_3d.shape
         print "all_rois bv shape: ", all_rois.shape
@@ -75,22 +63,14 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
         all_rois, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_rois_per_image,
         rois_per_image, _num_classes)
 
-    # print "rois_3d shape: ", rois_3d.shape
-    # rois_cnr = lidar_3d_to_corners(rois_3d[:,1:7])
-    # rois_cnr = np.hstack((rois_3d[:,0].reshape(-1,1), rois_cnr))
 
-    # if DEBUG:
-    #     print "labels shape: ", labels.shape
-    #     print "keep_inds: ", keep_inds
-    #     print "all_rois_bv shape:, ", all_rois_bv.shape
-    #     # print rois_bv
-    #     print "rois_3d shape:, ", rois_3d.shape
-    #     print "rois_cnr shape:, ", rois_cnr.shape
-
-    # bbox_target_data = _compute_targets_cnr(
-    #     rois_cnr[:, 1:25], gt_boxes_corners[gt_assignment[keep_inds], :24], labels)
-    # bbox_targets = \
-    #     _get_bbox_regression_labels_3d(bbox_target_data, num_classes)
+    if DEBUG:
+        print "labels shape: ", labels.shape
+        print "keep_inds: ", keep_inds
+        print "all_rois_bv shape:, ", all_rois_bv.shape
+        # print rois_bv
+        print "rois_3d shape:, ", rois_3d.shape
+        print "rois_cnr shape:, ", rois_cnr.shape
 
 
     rois_img = lidar_cnr_to_img(rois_cnr[:,1:25],
@@ -279,17 +259,9 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
         fg_inds = npr.choice(fg_inds, size=fg_rois_per_this_image, replace=False)
 
     # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
-    # print max_overlaps
-    # print max_overlaps[np.where(max_overlaps > 0.1)]
 
     bg_inds = np.where((max_overlaps < cfg.TRAIN.BG_THRESH_HI) &
                        (max_overlaps >= cfg.TRAIN.BG_THRESH_LO))[0]
-    # print cfg.TRAIN.BG_THRESH_LO
-    # print cfg.TRAIN.BG_THRESH_HI
-    # print bg_inds
-
-    # print np.where((max_overlaps < cfg.TRAIN.BG_THRESH_HI) & (max_overlaps >= cfg.TRAIN.BG_THRESH_LO))
-
 
     # Compute number of background RoIs to take from this image (guarding
     # against there being fewer than desired)
@@ -310,7 +282,8 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
 
     rois_bv = all_rois_bv[keep_inds]
     rois_3d = all_rois_3d[keep_inds]
-    # print "rois_3d shape: ", rois_3d.shape
+
+    # convert 3d to corners
     rois_cnr = lidar_3d_to_corners(rois_3d[:,1:7])
     rois_cnr = np.hstack((rois_3d[:,0].reshape(-1,1), rois_cnr))
 
@@ -318,13 +291,9 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
         print "labels shape: ", labels.shape
         print "keep_inds: ", keep_inds
         print "all_rois_bv shape:, ", all_rois_bv.shape
-        # print rois_bv
         print "rois_3d shape:, ", rois_3d.shape
         print "rois_cnr shape:, ", rois_cnr.shape
 
-    # print "_sample_rois_3d: ", gt_boxes_corners
-    # print gt_assignment
-    # print gt_assignment[keep_inds]
     bbox_target_data = _compute_targets_cnr(
         rois_cnr[:, 1:25], gt_boxes_corners[gt_assignment[keep_inds], :24], labels)
     bbox_targets = \

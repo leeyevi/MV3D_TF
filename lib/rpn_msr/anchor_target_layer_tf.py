@@ -24,7 +24,6 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
     labels and bounding-box regression targets.
     """
     _anchors = generate_anchors_bv()
-    #  _anchors = generate_anchors(scales=np.array(anchor_scales))
     _num_anchors = _anchors.shape[0]
 
     if DEBUG:
@@ -125,12 +124,6 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
 
     if not cfg.TRAIN.RPN_CLOBBER_POSITIVES:
         # assign bg labels first so that positive labels can clobber them
-        # print max_overlaps.shape
-        # print overlaps.shape
-        # print 'argmax : ', np.where(np.logical_and(0 < max_overlaps, max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP) != False)
-        # print max_overlaps[np.where(np.logical_and(0 < max_overlaps, max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP) != False)]
-        # print 'argmax:', np.where(((max_overlaps > 0) & np.where(max_overlaps<0.5)))
-        # labels[ (max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP) & ( 0 < max_overlaps)] = 0
 
         # hard negative for proposal_target_layer
         hard_negative = np.logical_and(0 < max_overlaps, max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP)
@@ -205,7 +198,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
 
 
     labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
-        # subsample negative labels if we have too many
+    # subsample negative labels if we have too many
     num_bg = cfg.TRAIN.RPN_BATCHSIZE - np.sum(labels == 1)
     bg_inds = np.where(labels == 0)[0]
     if len(bg_inds) > num_bg:
@@ -273,27 +266,12 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
         #  print 'bbox 3d gt: ', gt_boxes_3d
 
     # labels
-    #pdb.set_trace()
-     # labels = labels[fg_inds]
-    # labels = labels.reshape((1, height, width, A))
-    #  labels = labels.reshape((1, height, width, A)).transpose(0, 3, 1, 2)
-    #  labels = labels.reshape((1, 1, A * height, width))
     rpn_labels = labels
-
-    # bbox_targets
-     # bbox_targets = bbox_targets[fg_inds]
-    #  bbox_targets = bbox_targets \
-        #  .reshape((1, height, width, A * 6)).transpose(0, 3, 1, 2)
-
-    # bbox_targets = bbox_targets \
-    #     .reshape((1, height, width, A * 6))
-
     rpn_bbox_targets = bbox_targets
 
     if DEBUG:
         print 'labels shape: ', labels.shape
         print 'targets shape: ', bbox_targets.shape
-
 
     return rpn_labels, rpn_bbox_targets, anchors, anchors_3d
 

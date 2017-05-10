@@ -11,7 +11,7 @@ import numpy as np
 import numpy.random as npr
 import cv2
 from fast_rcnn.config import cfg
-from utils.blob import prep_im_for_blob, im_list_to_blob, lidar_list_to_blob
+from utils.blob import prep_im_for_blob, im_list_to_blob
 
 
 def get_minibatch(roidb, num_classes):
@@ -19,8 +19,8 @@ def get_minibatch(roidb, num_classes):
     num_images = len(roidb)
     # print("num_images: ", num_images)
     # Sample random scales to use for each image in this batch
-    #  random_scale_inds = npr.randint(0, high=len(cfg.TRAIN.SCALES),
-                                    #  size=num_images)
+    random_scale_inds = npr.randint(0, high=len(cfg.TRAIN.SCALES),
+                                     size=num_images)
     assert(cfg.TRAIN.BATCH_SIZE % num_images == 0), \
         'num_images ({}) must divide BATCH_SIZE ({})'. \
         format(num_images, cfg.TRAIN.BATCH_SIZE)
@@ -33,12 +33,13 @@ def get_minibatch(roidb, num_classes):
 
     im_scales = [1]
     im = cv2.imread(roidb[0]['image_path'])
+    im = im.astype(np.float32, copy=False)
     lidar_bv_blob = np.load(roidb[0]['lidar_bv_path'])
 
-    # im_blob = im / 127.0 - 1
-    im_blob = im
+    # substract mean
+    im -= cfg.PIXEL_MEANS
 
-    im_blob = im_blob.reshape((1, im_blob.shape[0], im_blob.shape[1], im_blob.shape[2]))
+    im_blob = im.reshape((1, im.shape[0], im.shape[1], im.shape[2]))
     lidar_bv_blob = lidar_bv_blob.reshape((1, lidar_bv_blob.shape[0], lidar_bv_blob.shape[1], lidar_bv_blob.shape[2]))
 
     blobs = {'image_data': im_blob,
@@ -60,7 +61,6 @@ def get_minibatch(roidb, num_classes):
     gt_boxes_bv[:, 4] = roidb[0]['gt_classes'][gt_inds]
     blobs['gt_boxes_bv'] = gt_boxes_bv
 
-    # print "minibatch: ", gt_boxes_bv[:,:4]
 
     # gt boxes 3d: (x, y, z, l, w, h, cls)
     gt_boxes_3d = np.empty((len(gt_inds), 7), dtype=np.float32)
@@ -76,36 +76,32 @@ def get_minibatch(roidb, num_classes):
     blobs['im_info'] = np.array(
         [[lidar_bv_blob.shape[1], lidar_bv_blob.shape[2], im_scales[0]]],
         dtype=np.float32)
-    # blobs['im_info'] = np.array(
-    #     [[im_blob.shape[2], im_blob.shape[3], im_scales[0]]],
-    #     dtype=np.float32)
 
     return blobs
 
 
 
-# def _get_image_blob(roidb, scale_inds):
-#     """Builds an input blob from the images in the roidb at the specified
-#     scales.
-#     """
-#     num_images = len(roidb)
-#     processed_ims = []
-#     im_scales = [1]
-#     for i in xrange(num_images):
-#         im = cv2.imread(roidb[i]['image_path'])
-#         # if roidb[i]['flipped']:
-#         #     im = im[:, ::-1, :]
-#         # # target_size = cfg.TRAIN.SCALES[scale_inds[i]]
-#         # targets_size = 
-#         # im, im_scale = prep_im_for_blob(im, cfg.PIXEL_MEANS, target_size,
-#         #                                 cfg.TRAIN.MAX_SIZE)
+def _get_image_blob(roidb, scale_inds):
+    """Builds an input blob from the images in the roidb at the specified
+    scales.
+    """
+    num_images = len(roidb)
+    processed_ims = []
+    im_scales = []
+    for i in xrange(num_images):
+        im = cv2.imread(roidb[i]['image_path'])
+        if roidb[i]['flipped']:
+            im = im[:, ::-1, :]
+        target_size = cfg.TRAIN.SCALES[scale_inds[i]]
+        im, im_scale = prep_im_for_blob(im, cfg.PIXEL_MEANS, target_size,
+                                        cfg.TRAIN.MAX_SIZE)
+        im_scales.append(im_scale)
+        processed_ims.append(im)
 
-#         processed_ims.append(im)
+    # Create a blob to hold the input images
+    blob = im_list_to_blob(processed_ims)
 
-#     # Create a blob to hold the input images
-#     blob = im_list_to_blob(processed_ims)
-
-#     return blob, im_scales
+    return blob, im_scales
 
 # def _get_lidar_bv_blob(roidb, scale_inds):
 #     """Builds an input blob from the lidar_bv in the roidb at the specified
