@@ -36,14 +36,14 @@ For details about MV3D please refer to the paper [Multi-View 3D Object Detection
  % {kitti_dir}/object/training/image_2
  %                            /image_3
  %                            /calib
- %                            /planes
+ %                            /lidar_bv
  %							 /velodyne
        
 
  % {kitti_dir}/object/testing/image_2
  %                           /image_3
  %                           /calib
- %                           /planes
+ %                           /lidar_bv
  %							/velodyne
 ```
 
@@ -74,7 +74,7 @@ For details about MV3D please refer to the paper [Multi-View 3D Object Detection
 6. Run script to train model 
 ```Shell
  cd $MV3D
- ./experiments/scripts/mv3d.sh $DEVICE $DEVICE_ID $.npy/ckpt.meta kitti_train
+ ./experiments/scripts/mv3d.sh $DEVICE $DEVICE_ID ${.npy/ckpt.meta} kitti_train
 ```
  DEVICE is either cpu/gpu
 
