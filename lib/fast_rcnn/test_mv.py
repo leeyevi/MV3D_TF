@@ -19,74 +19,92 @@ import matplotlib.pyplot as plt
 from tensorflow.python.client import timeline
 import time
 
+import mayavi.mlab as mlab
 
-def _get_image_blob(im):
-    """Converts an image into a network input.
-    Arguments:
-        im (ndarray): a color image in BGR order
-    Returns:
-        blob (ndarray): a data blob holding an image pyramid
-        im_scale_factors (list): list of image scales (relative to im) used
-            in the image pyramid
-    """
-    im_orig = im.astype(np.float32, copy=True)
-    # im_orig -= cfg.PIXEL_MEANS
+def draw_lidar(lidar, is_grid=False, is_top_region=False, fig=None):
+    pxs=lidar[:,0]
+    pys=lidar[:,1]
+    pzs=lidar[:,2]
+    prs=lidar[:,3]
 
-    im_shape = im_orig.shape
-    im_size_min = np.min(im_shape[0:2])
-    im_size_max = np.max(im_shape[0:2])
+    if fig is None: fig = mlab.figure(figure=None, bgcolor=(0,0,0), fgcolor=None, engine=None, size=(1000, 500))
+    mlab.points3d(
+        pxs, pys, pzs, prs,
+        mode='point',  # 'point'  'sphere'
+        colormap='gnuplot',  #'bone',  #'spectral',  #'copper',
+        scale_factor=1,
+        figure=fig)
+    #draw grid
+    if is_grid:
+        mlab.points3d(0, 0, 0, color=(1,1,1), mode='sphere', scale_factor=0.2)
 
-    processed_ims = []
-    im_scale_factors = []
+        for y in np.arange(-50,50,1):
+            x1,y1,z1 = -50, y, 0
+            x2,y2,z2 =  50, y, 0
+            mlab.plot3d([x1, x2], [y1, y2], [z1,z2], color=(0.5,0.5,0.5), tube_radius=None, line_width=1, figure=fig)
 
-    #  for target_size in cfg.TEST.SCALES:
-        #  im_scale = float(target_size) / float(im_size_min)
-        #  # Prevent the biggest axis from being more than MAX_SIZE
-        #  if np.round(im_scale * im_size_max) > cfg.TEST.MAX_SIZE:
-            #  im_scale = float(cfg.TEST.MAX_SIZE) / float(im_size_max)
-        #  im = cv2.resize(im_orig, None, None, fx=im_scale, fy=im_scale,
-                        #  interpolation=cv2.INTER_LINEAR)
-        #  im_scale_factors.append(im_scale)
-    processed_ims.append(im)
+        for x in np.arange(-50,50,1):
+            x1,y1,z1 = x,-50, 0
+            x2,y2,z2 = x, 50, 0
+            mlab.plot3d([x1, x2], [y1, y2], [z1,z2], color=(0.5,0.5,0.5), tube_radius=None, line_width=1, figure=fig)
 
-    # Create a blob to hold the input images
-    blob = im_list_to_blob(processed_ims)
+    #draw axis
+    if 1:
+        mlab.points3d(0, 0, 0, color=(1,1,1), mode='sphere', scale_factor=0.2)
 
-    return blob, np.array(im_scale_factors)
+        axes=np.array([
+            [2.,0.,0.,0.],
+            [0.,2.,0.,0.],
+            [0.,0.,2.,0.],
+        ],dtype=np.float64)
+        fov=np.array([  ##<todo> : now is 45 deg. use actual setting later ...
+            [20., 20., 0.,0.],
+            [20.,-20., 0.,0.],
+        ],dtype=np.float64)
 
-def _get_lidar_bv_blob(im):
-    """Converts an image into a network input.
-    Arguments:
-        im (ndarray): a color image in BGR order
-    Returns:
-        blob (ndarray): a data blob holding an image pyramid
-        im_scale_factors (list): list of image scales (relative to im) used
-            in the image pyramid
-    """
-    im_orig = im.astype(np.float32, copy=True)
-    # im_orig -= cfg.PIXEL_MEANS
 
-    im_shape = im_orig.shape
-    im_size_min = np.min(im_shape[0:2])
-    im_size_max = np.max(im_shape[0:2])
+        mlab.plot3d([0, axes[0,0]], [0, axes[0,1]], [0, axes[0,2]], color=(1,0,0), tube_radius=None, figure=fig)
+        mlab.plot3d([0, axes[1,0]], [0, axes[1,1]], [0, axes[1,2]], color=(0,1,0), tube_radius=None, figure=fig)
+        mlab.plot3d([0, axes[2,0]], [0, axes[2,1]], [0, axes[2,2]], color=(0,0,1), tube_radius=None, figure=fig)
+        mlab.plot3d([0, fov[0,0]], [0, fov[0,1]], [0, fov[0,2]], color=(1,1,1), tube_radius=None, line_width=1, figure=fig)
+        mlab.plot3d([0, fov[1,0]], [0, fov[1,1]], [0, fov[1,2]], color=(1,1,1), tube_radius=None, line_width=1, figure=fig)
 
-    processed_ims = []
-    # im_scale_factors = []
+    #draw top_image feature area
+    if is_top_region:
+        x1 = TOP_X_MIN
+        x2 = TOP_X_MAX
+        y1 = TOP_Y_MIN
+        y2 = TOP_Y_MAX
+        mlab.plot3d([x1, x1], [y1, y2], [0,0], color=(0.5,0.5,0.5), tube_radius=None, line_width=1, figure=fig)
+        mlab.plot3d([x2, x2], [y1, y2], [0,0], color=(0.5,0.5,0.5), tube_radius=None, line_width=1, figure=fig)
+        mlab.plot3d([x1, x2], [y1, y1], [0,0], color=(0.5,0.5,0.5), tube_radius=None, line_width=1, figure=fig)
+        mlab.plot3d([x1, x2], [y2, y2], [0,0], color=(0.5,0.5,0.5), tube_radius=None, line_width=1, figure=fig)
 
-    # for target_size in cfg.TEST.SCALES:
-    #     im_scale = float(target_size) / float(im_size_min)
-    #     # Prevent the biggest axis from being more than MAX_SIZE
-    #     if np.round(im_scale * im_size_max) > cfg.TEST.MAX_SIZE:
-    #         im_scale = float(cfg.TEST.MAX_SIZE) / float(im_size_max)
-    #     # im = cv2.resize(im_orig, None, None, fx=im_scale, fy=im_scale,
-    #     #                 interpolation=cv2.INTER_LINEAR)
-    #     im_scale_factors.append(im_scale)
-    processed_ims.append(im_orig)
+    mlab.orientation_axes()
+    mlab.view(azimuth=180,elevation=None,distance=50,focalpoint=[ 12.0909996 , -1.04700089, -2.03249991])#2.0909996 , -1.04700089, -2.03249991
 
-    # Create a blob to hold the input images
-    blob = lidar_list_to_blob(processed_ims)
 
-    return blob, [1.0]
+def draw_gt_boxes3d(gt_boxes3d, fig, color=(1,1,1), line_width=2):
+
+    num = len(gt_boxes3d)
+    for n in range(num):
+        b = gt_boxes3d[n]
+
+        mlab.text3d(b[0,0], b[0,1], b[0,2], '%d'%n, scale=(1, 1, 1), color=color, figure=fig)
+        for k in range(0,4):
+
+            #http://docs.enthought.com/mayavi/mayavi/auto/mlab_helper_functions.html
+            i,j=k,(k+1)%4
+            mlab.plot3d([b[i,0], b[j,0]], [b[i,1], b[j,1]], [b[i,2], b[j,2]], color=color, tube_radius=None, line_width=line_width, figure=fig)
+
+            i,j=k+4,(k+1)%4 + 4
+            mlab.plot3d([b[i,0], b[j,0]], [b[i,1], b[j,1]], [b[i,2], b[j,2]], color=color, tube_radius=None, line_width=line_width, figure=fig)
+
+            i,j=k,k+4
+            mlab.plot3d([b[i,0], b[j,0]], [b[i,1], b[j,1]], [b[i,2], b[j,2]], color=color, tube_radius=None, line_width=line_width, figure=fig)
+
+    mlab.view(azimuth=180,elevation=None,distance=50,focalpoint=[ 12.0909996 , -1.04700089, -2.03249991])#2.0909996 , -1.04700089, -2.03249991
+
 
 def _get_rois_blob(im_rois, im_scale_factors):
     """Converts RoIs into network inputs.
@@ -127,191 +145,6 @@ def _project_im_rois(im_rois, scales):
 
     return rois, levels
 
-def _get_blobs(im,bv, rois):
-    """Convert an image and RoIs within that image into network inputs."""
-    blobs = {'lidar_bv_data' : None, 'rois' : None}
-    blobs['lidar_bv_data'], im_scale_factors = _get_lidar_bv_blob(bv)
-    blobs['image_data'], _  = _get_image_blob(im)
-    return blobs, im_scale_factors
-
-def _clip_boxes(boxes, im_shape):
-    """Clip boxes to image boundaries."""
-    # x1 >= 0
-    boxes[:, 0::4] = np.maximum(boxes[:, 0::4], 0)
-    # y1 >= 0
-    boxes[:, 1::4] = np.maximum(boxes[:, 1::4], 0)
-    # x2 < im_shape[1]
-    boxes[:, 2::4] = np.minimum(boxes[:, 2::4], im_shape[1] - 1)
-    # y2 < im_shape[0]
-    boxes[:, 3::4] = np.minimum(boxes[:, 3::4], im_shape[0] - 1)
-    return boxes
-
-def _rescale_boxes(boxes, inds, scales):
-    """Rescale boxes according to image rescaling."""
-
-    for i in xrange(boxes.shape[0]):
-        boxes[i,:] = boxes[i,:] / scales[int(inds[i])]
-
-    return boxes
-
-def im_detect(sess, net, im, boxes=None):
-    """Detect object classes in an image given object proposals.
-    Arguments:
-        net (caffe.Net): Fast R-CNN network to use
-        im (ndarray): color image to test (in BGR order)
-        boxes (ndarray): R x 4 array of object proposals
-    Returns:
-        scores (ndarray): R x K array of object class scores (K includes
-            background as object category 0)
-        boxes (ndarray): R x (4*K) array of predicted bounding boxes
-    """
-
-    blobs, im_scales = _get_blobs(im, boxes)
-
-    # When mapping from image ROIs to feature map ROIs, there's some aliasing
-    # (some distinct image ROIs get mapped to the same feature ROI).
-    # Here, we identify duplicate feature ROIs, so we only compute features
-    # on the unique subset.
-    if cfg.DEDUP_BOXES > 0 and not cfg.TEST.HAS_RPN:
-        v = np.array([1, 1e3, 1e6, 1e9, 1e12])
-        hashes = np.round(blobs['rois'] * cfg.DEDUP_BOXES).dot(v)
-        _, index, inv_index = np.unique(hashes, return_index=True,
-                                        return_inverse=True)
-        blobs['rois'] = blobs['rois'][index, :]
-        boxes = boxes[index, :]
-
-    if cfg.TEST.HAS_RPN:
-        im_blob = blobs['data']
-        blobs['im_info'] = np.array(
-            [[im_blob.shape[1], im_blob.shape[2], im_scales[0]]],
-            dtype=np.float32)
-    # forward pass
-    if cfg.TEST.HAS_RPN:
-        feed_dict={net.data: blobs['data'], net.im_info: blobs['im_info'], net.keep_prob: 1.0}
-    else:
-        feed_dict={net.data: blobs['data'], net.rois: blobs['rois'], net.keep_prob: 1.0}
-
-    run_options = None
-    run_metadata = None
-    if cfg.TEST.DEBUG_TIMELINE:
-        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-        run_metadata = tf.RunMetadata()
-
-    cls_score, cls_prob, bbox_pred, rois = sess.run([net.get_output('cls_score'), net.get_output('cls_prob'), net.get_output('bbox_pred'),net.get_output('rois')],
-                                                    feed_dict=feed_dict,
-                                                    options=run_options,
-                                                    run_metadata=run_metadata)
-
-    if cfg.TEST.HAS_RPN:
-        assert len(im_scales) == 1, "Only single-image batch implemented"
-        boxes = rois[:, 1:5] / im_scales[0]
-
-
-    if cfg.TEST.SVM:
-        # use the raw scores before softmax under the assumption they
-        # were trained as linear SVMs
-        scores = cls_score
-    else:
-        # use softmax estimated probabilities
-        scores = cls_prob
-
-    if cfg.TEST.BBOX_REG:
-        # Apply bounding-box regression deltas
-        box_deltas = bbox_pred
-        pred_boxes = bbox_transform_inv(boxes, box_deltas)
-        pred_boxes = _clip_boxes(pred_boxes, im.shape)
-    else:
-        # Simply repeat the boxes, once for each class
-        pred_boxes = np.tile(boxes, (1, scores.shape[1]))
-
-    if cfg.DEDUP_BOXES > 0 and not cfg.TEST.HAS_RPN:
-        # Map scores and predictions back to the original set of boxes
-        scores = scores[inv_index, :]
-        pred_boxes = pred_boxes[inv_index, :]
-
-    if cfg.TEST.DEBUG_TIMELINE:
-        trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-        trace_file = open(str(long(time.time() * 1000)) + '-test-timeline.ctf.json', 'w')
-        trace_file.write(trace.generate_chrome_trace_format(show_memory=False))
-        trace_file.close()
-
-    return scores, pred_boxes
-
-def bv_detect(sess, net, im, boxes=None):
-    """Detect object classes in an lidar bv  given object proposals.
-    Arguments:
-        net (caffe.Net): Fast R-CNN network to use
-        bv (ndarray): lidar bv to test
-        boxes (ndarray): R x 4 array of object proposals
-    Returns:
-        scores (ndarray): R x K array of object class scores (K includes
-            background as object category 0)
-        boxes (ndarray): R x (4*K) array of predicted bounding boxes
-    """
-
-    blobs, im_scales = _get_blobs(im, boxes)
-
-
-    im_blob = blobs['lidar_bv_data']
-    blobs['im_info'] = np.array(
-        [[im_blob.shape[1], im_blob.shape[2], im_scales[0]]],
-        dtype=np.float32)
-    # forward pass
-    if cfg.TEST.HAS_RPN:
-        feed_dict={net.lidar_bv_data: blobs['lidar_bv_data'], net.im_info: blobs['im_info'], net.keep_prob: 1.0}
-
-    run_options = None
-    run_metadata = None
-    if cfg.TEST.DEBUG_TIMELINE:
-        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-        run_metadata = tf.RunMetadata()
-
-    cls_score, cls_prob, bbox_pred_cnr, rois = sess.run([net.get_output('cls_score'),
-                                             net.get_output('cls_prob'),
-                                             net.get_output('bbox_pred'),
-                                             net.get_output('rois')],
-                                             feed_dict=feed_dict,
-                                             options=run_options,
-                                             run_metadata=run_metadata)
-
-    scores = cls_prob
-
-    print "scores: ", scores[:10]
-    print "cls :", cls_score[:10]
-    print "rois", rois[0].shape
-    print "rois", np.where(rois[0][:,0] == 1)
-    print "bbox_pred_cnr: ", bbox_pred_cnr[0]
-
-
-    if cfg.TEST.HAS_RPN:
-        assert len(im_scales) == 1, "Only single-image batch implemented"
-        boxes_3d = rois[1][:, 1:7] / im_scales[0]
-
-    if cfg.TEST.BBOX_REG:
-        # Apply bounding-box regression deltas
-        box_deltas = bbox_pred_cnr
-        boxes_cnr = lidar_to_corners(boxes_3d)
-        boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
-        pred_boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
-        print "boxes_cnr: ", boxes_cnr[0]
-        print "pred_boxes_cnr: ", pred_boxes_cnr[0]
-        # pred_boxes = _clip_boxes(pred_boxes, im.shape)
-
-    #  preject corners to lidar_bv
-    pred_boxes_bv = corners_to_bv(pred_boxes_cnr)
-    pred_boxes_bv = np.hstack((pred_boxes_bv, pred_boxes_bv))
-    # pred_boxes_bv = rois[0]
-    print pred_boxes_cnr.shape
-    print pred_boxes_bv.shape
-
-
-    if cfg.TEST.DEBUG_TIMELINE:
-        trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-        trace_file = open(str(long(time.time() * 1000)) + '-test-timeline.ctf.json', 'w')
-        trace_file.write(trace.generate_chrome_trace_format(show_memory=False))
-        trace_file.close()
-
-    return scores, pred_boxes_bv, pred_boxes_cnr
 
 def box_detect(sess, net, im, bv, calib,  boxes=None):
     """Detect object classes in an lidar bv  given object proposals.
@@ -352,7 +185,7 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
 
     conv5_3, deconv, rpn_cls_prob, rpn_cls_prob_reshape, rpn_cls_score_reshape, rpn_cls_score, cls_score, cls_prob, bbox_pred_cnr, rois = sess.run([
                                              net.get_output('conv5_3_2'),
-                                             net.get_output('deconv_2x_2'),
+                                             net.get_output('conv5_3'),
                                              net.get_output('rpn_cls_prob'),
                                              net.get_output('rpn_cls_prob_reshape'),
                                              net.get_output('rpn_cls_score_reshape'),
@@ -421,14 +254,14 @@ def box_detect(sess, net, im, bv, calib,  boxes=None):
     # ! Not apply corner regression
     pred_boxes_cnr = np.hstack((boxes_cnr, boxes_cnr))
     # apply corner regression
-    # pred_boxes_cnr = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
+    pred_boxes_cnr_r = bbox_transform_inv_cnr(boxes_cnr, box_deltas)
 
 
     #  preject corners to lidar_bv
     pred_boxes_bv = corners_to_bv(pred_boxes_cnr)
 
 
-    return scores, pred_boxes_bv, pred_boxes_cnr
+    return scores, pred_boxes_bv, pred_boxes_cnr, pred_boxes_cnr_r
 
 def vis_detections(im, class_name, dets, thresh=0.8):
     """Visual debugging of detections."""
@@ -568,11 +401,13 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
         bv = np.load(imdb.lidar_path_at(i))
         calib = imdb.calib_at(i)
 
+
+
         print "Inference: ", imdb.lidar_path_at(i)
 
 
         _t['im_detect'].tic()
-        scores, boxes_bv, boxes_cnr = box_detect(sess, net, im, bv, calib,  box_proposals)
+        scores, boxes_bv, boxes_cnr, boxes_cnr_r = box_detect(sess, net, im, bv, calib,  box_proposals)
         _t['im_detect'].toc()
 
 
@@ -590,9 +425,14 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
             cls_scores = scores[inds, j]
             cls_boxes = boxes_bv[inds, j*4:(j+1)*4]
             cls_boxes_cnr = boxes_cnr[inds, j*24:(j+1)*24]
+
+            cls_boxes_cnr_r = boxes_cnr_r[inds, j*24:(j+1)*24]
+
             cls_dets = np.hstack((cls_boxes, cls_scores[:, np.newaxis])) \
                 .astype(np.float32, copy=False)
             cls_dets_cnr = np.hstack((cls_boxes_cnr, cls_scores[:, np.newaxis])) \
+                .astype(np.float32, copy=False)
+            cls_dets_cnr_r = np.hstack((cls_boxes_cnr_r, cls_scores[:, np.newaxis])) \
                 .astype(np.float32, copy=False)
             # print "scores: ", cls_scores
             # print "cls_dets : ", cls_dets.shape
@@ -600,6 +440,7 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
             keep = nms(cls_dets, cfg.TEST.NMS)
             cls_dets = cls_dets[keep, :]
             cls_dets_cnr = cls_dets_cnr[keep, :]
+            cls_dets_cnr_r = cls_dets_cnr_r[keep, :]
             cls_scores = cls_scores[keep]
 
             # project to image
@@ -610,12 +451,30 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
                 img_boxes = lidar_cnr_to_img(cls_dets_cnr[:,:24], calib[3], calib[2], calib[0])
                 img = show_image_boxes(im, img_boxes)
                 plt.imshow(img)
-                plt.show()
+                #plt.show()
 
                 print cls_dets_cnr.shape
                 image_bv = show_image_boxes(scale_to_255(bv[:,:,8], min=0, max=2), cls_dets[:, :4])
                 image_cnr = show_lidar_corners(im, cls_dets_cnr[:,:24], calib)
 
+
+                if 1:
+                    import mayavi.mlab as mlab
+
+                    filename = os.path.join(imdb.lidar_path_at(i)[:-19], 'velodyne', str(i).zfill(6)+'.bin')
+
+                    print filename
+                    scan = np.fromfile(filename, dtype=np.float32)
+                    scan = scan.reshape((-1, 4))
+                    corners = cls_dets_cnr[:,:24].reshape((-1, 3, 8)).transpose((0, 2, 1))
+
+                    corners_r = cls_dets_cnr_r[:,:24].reshape((-1, 3, 8)).transpose((0, 2, 1))
+                    print corners_r
+                    fig = mlab.figure(figure=None, bgcolor=(0,0,0), fgcolor=None, engine=None, size=(1000, 500))
+                    draw_lidar(scan, fig=fig)
+                    draw_gt_boxes3d(corners, fig=fig)
+                    draw_gt_boxes3d(corners_r, color = (1,0,1),fig=fig)
+                    mlab.show()
 
                 plt.subplot(211)
                 plt.title('bv proposal')
@@ -651,7 +510,7 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
         cPickle.dump(all_boxes, f, cPickle.HIGHEST_PROTOCOL)
 
     det_cnr_file = os.path.join(output_dir, 'detections_cnr.pkl')
-    with open(det_file, 'wb') as f:
+    with open(det_cnr_file, 'wb') as f:
         cPickle.dump(all_boxes_cnr, f, cPickle.HIGHEST_PROTOCOL)
 
     print 'Evaluating detections'
