@@ -10,14 +10,6 @@ from rpn_msr.proposal_target_layer_tf import proposal_target_layer_3d as proposa
 from fast_rcnn.config import cfg
 
 DEFAULT_PADDING = 'SAME'
-# TOP_X_MAX = 70.3
-# TOP_X_MIN = 0
-# TOP_Y_MIN = -40
-# TOP_Y_MAX = 40
-# RES = 0.1
-# LIDAR_HEIGHT = 1.73
-# CAR_HEIGHT = 1.56
-
 
 def layer(op):
     def layer_decorated(self, *args, **kwargs):

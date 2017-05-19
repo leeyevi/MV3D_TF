@@ -344,12 +344,11 @@ class kitti_mv3d(datasets.imdb):
                     # the KITTI server expects 0-based indices
                     for k in xrange(dets.shape[0]):
                         # TODO
-                        alpha = dets3D[k, 0] - np.arctan2(dets3D[k, 4], dets3D[k, 6])
-                        f.write('{:s} -1 -1 {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.3f}\n' \
+                        # alpha = dets3D[k, 0] - np.arctan2(dets3D[k, 4], dets3D[k, 6])
+                        alpha = 0
+                        f.write('{:s} -1 -1 {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} -1 -1 -1 -1 -1 -1 -1 -1\n' \
                                 .format(cls.lower(), alpha, \
-                                dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3], \
-                                dets3D[k, 2], dets3D[k, 3], dets3D[k, 1], \
-                                dets3D[k, 4], dets3D[k, 5], dets3D[k, 6], dets3D[k, 0], dets[k, 4]))
+                                dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3]))
         return path
 
     def _write_corners_results_file(self, all_boxes, all_boxes3D):
@@ -396,7 +395,7 @@ class kitti_mv3d(datasets.imdb):
         status = subprocess.call(cmd, shell=True)
 
     def evaluate_detections(self, all_boxes, all_boxes3D, output_dir):
-        self._write_corners_results_file(all_boxes, all_boxes3D)
+        self._write_kitti_results_file(all_boxes, all_boxes3D)
         # path = self._write_kitti_results_file(all_boxes, all_boxes3D)
         # if self._image_set != 'test':
         #     self._do_eval(path)

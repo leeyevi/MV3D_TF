@@ -99,7 +99,7 @@ class SolverWrapper(object):
         rpn_bbox_keep = tf.where(tf.equal(rpn_label, 1))
 
         rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_keep),[-1,2])
-        # rpn_cls_score = tf.reshape(rpn_cls_score, [-1,2])
+
         rpn_label = tf.reshape(tf.gather(rpn_label, rpn_keep),[-1])
         rpn_label = tf.reshape(rpn_label, [-1])
         rpn_cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=rpn_cls_score, labels=rpn_label))
@@ -109,17 +109,11 @@ class SolverWrapper(object):
         #  rpn_bbox_targets = tf.transpose(self.net.get_output('rpn_data')[1],[0,2,3,1])
         rpn_bbox_targets = self.net.get_output('rpn_data')[1]
 
-
-
-
-        rpn_bbox_pred = tf.reshape(tf.gather(tf.reshape(rpn_bbox_pred, [-1, 6]), rpn_bbox_keep),[-1, 6]) #
+        rpn_bbox_pred = tf.reshape(tf.gather(tf.reshape(rpn_bbox_pred, [-1, 6]), rpn_bbox_keep),[-1, 6]) 
         rpn_bbox_targets = tf.reshape(tf.gather(tf.reshape(rpn_bbox_targets, [-1,6]),rpn_bbox_keep), [-1, 6])
 
-        # rpn_bbox_pred = tf.reshape(rpn_bbox_pred, [-1, 6])
-        # rpn_bbox_targets = tf.reshape(rpn_bbox_targets, [-1,6])
-
         rpn_smooth_l1 = self._modified_smooth_l1(3.0, rpn_bbox_pred, rpn_bbox_targets)
-        #  rpn_loss_box = tf.multiply(tf.reduce_mean(tf.reduce_sum(rpn_smooth_l1, reduction_indices=[1, 2, 3])), 1)
+
         rpn_loss_box = tf.multiply(tf.reduce_mean(tf.reduce_sum(rpn_smooth_l1,
                                                                 reduction_indices=[1])),
                                    1.0)
@@ -214,7 +208,7 @@ class SolverWrapper(object):
                                              self.net.get_output('rpn_rois'),
                                              self.net.get_output('roi_data_3d')],
                                              feed_dict=feed_dict)
-                    # self.net.get_output('rpn_bbox_pred'),
+
                     vis_detections(blobs['lidar_bv_data'], blobs['image_data'], blobs['calib'], bbox_pred_cnr, rpn_data, rpn_rois, rcnn_roi, cls_prob,  blobs['gt_boxes_3d'])
 
             if (iter+1) % cfg.TRAIN.SNAPSHOT_ITERS == 0:

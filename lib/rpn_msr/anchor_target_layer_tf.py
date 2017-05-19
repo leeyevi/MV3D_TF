@@ -162,28 +162,6 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
         #print "was %s inds, disabling %s, now %s inds" % (
             #len(bg_inds), len(disable_inds), np.sum(labels == 0))
 
-    # idx_label  = np.where(labels != -1)[0]
-    # idx_target = np.where(labels ==  1)[0]
-    # inds   = inds_inside[idx_label]
-    # labels = labels[idx_label]
-
-    # pos_anchors = anchors[idx_target]
-
-    # pos_inds = inds_inside[idx_target]
-    # inside_anchors = anchors[inds_inside]
-    # pos_gt_boxes_3d = (gt_boxes_3d[argmax_overlaps])[idx_target]
-    # if DEBUG:
-    #     print 'pos_gt_boxes_3d shape: ', pos_gt_boxes_3d.shape
-        #  print 'anchors shape', anchors.shape
-    #  bbox_targets = np.zeros((len(inds_inside), 6), dtype=np.float32)
-    #  anchors_3d = bv_anchor_to_lidar(anchors)
-    #  bbox_targets = _compute_targets_3d(anchors_3d, gt_boxes_3d[argmax_overlaps, :])
-
-
-    # bbox_targets = np.zeros((len(idx_target), 6), dtype=np.float32)
-    # bbox_targets = _compute_targets_3d(anchors, gt_boxes_3d[argmax_overlaps, :])
-    # anchors_3d = bv_anchor_to_lidar(pos_anchors)
-    # bbox_targets = _compute_targets_3d(anchors_3d, pos_gt_boxes_3d)
     anchors_3d = bv_anchor_to_lidar(anchors)
     bbox_targets = _compute_targets_3d(anchors_3d, gt_boxes_3d[argmax_overlaps, :])
 
@@ -194,8 +172,6 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
     zeros = np.zeros((labels_new.shape[0], 1), dtype=np.float32)
     anchors =  np.hstack((zeros, anchors[all_inds])).astype(np.float32)
     anchors_3d =  np.hstack((zeros, anchors_3d[all_inds])).astype(np.float32)
-    # anchors_3d =  np.hstack((zeros, gt_boxes_3d)).astype(np.float32)
-
 
     labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
     # subsample negative labels if we have too many
@@ -223,7 +199,6 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
     # # print len(all_inds)
     # anchors =  np.hstack((zeros, anchors[all_inds])).astype(np.float32)
     # anchors_3d =  np.hstack((zeros, anchors_3d[all_inds])).astype(np.float32)
-
 
     # bg_inds = np.where(hard_negative == True)[0]
     # disable_inds = npr.choice(
@@ -259,11 +234,10 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_boxes_3d, im_info, _feat_str
         _count += 1
         print 'rpn: num_positive avg', _fg_sum / _count
         print 'rpn: num_negative avg', _bg_sum / _count
-        #  print 'bbox targets: ', bbox_targets[fg_inds]
         print 'fg inds: ', fg_inds
         print 'label shape', labels.shape
         print 'bbox_targets', bbox_targets.shape
-        #  print 'bbox 3d gt: ', gt_boxes_3d
+
 
     # labels
     rpn_labels = labels

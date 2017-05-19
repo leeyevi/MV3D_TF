@@ -27,9 +27,6 @@ def get_minibatch(roidb, num_classes):
 
     # Get the input image blob, formatted for caffe
     # im_blob, im_scales = _get_image_blob(roidb, random_scale_inds)
-    # lidar_bv_blob = _get_lidar_bv_blob(roidb, random_scale_inds)
-    # print('im_blob: ', im_blob.shape)
-    # print('lidar_bv_blob: ', lidar_bv_blob.shape)
 
     im_scales = [1]
     im = cv2.imread(roidb[0]['image_path'])
@@ -60,7 +57,6 @@ def get_minibatch(roidb, num_classes):
     gt_boxes_bv[:, 0:4] = roidb[0]['boxes_bv'][gt_inds, :]
     gt_boxes_bv[:, 4] = roidb[0]['gt_classes'][gt_inds]
     blobs['gt_boxes_bv'] = gt_boxes_bv
-
 
     # gt boxes 3d: (x, y, z, l, w, h, cls)
     gt_boxes_3d = np.empty((len(gt_inds), 7), dtype=np.float32)
@@ -102,25 +98,6 @@ def _get_image_blob(roidb, scale_inds):
     blob = im_list_to_blob(processed_ims)
 
     return blob, im_scales
-
-# def _get_lidar_bv_blob(roidb, scale_inds):
-#     """Builds an input blob from the lidar_bv in the roidb at the specified
-#     scales.
-#     """
-#     num_images = len(roidb)
-#     processed_bvs = []
-
-#     for i in xrange(num_images):
-
-#         # im = cv2.imread(roidb[i]['lidar_bv'])
-#         bv = np.load(roidb[i]['lidar_bv_path'])
-
-#         processed_bvs.append(bv)
-
-#     # Create a blob to hold the input images
-#     blob = lidar_list_to_blob(processed_bvs)
-
-#     return blob
 
 # def _project_im_rois(im_rois, im_scale_factor):
 #     """Project image RoIs into the rescaled training image."""

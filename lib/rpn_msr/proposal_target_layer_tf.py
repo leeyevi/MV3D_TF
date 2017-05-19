@@ -26,10 +26,9 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
     # (i.e., rpn.proposal_layer.ProposalLayer), or any other source
     # TODO(rbg): it's annoying that sometimes I have extra info before
     # and other times after box coordinates -- normalize to one format
-    # convert to lidar bv
-    # all_rois =   lidar_to_bv(rpn_rois_3d)
+
     all_rois = rpn_rois_bv
-    # print "gt_boxes_bv: ", gt_boxes_bv
+
     # if DEBUG:
         # print "gt_boxes_bv: ", gt_boxes_bv, gt_boxes_bv.shape
         # print "gt_boxes_bv: ", gt_boxes_bv[:, :-1]
@@ -68,7 +67,6 @@ def proposal_target_layer_3d(rpn_rois_bv, rpn_rois_3d, gt_boxes_bv, gt_boxes_3d,
         print "labels shape: ", labels.shape
         print "keep_inds: ", keep_inds
         print "all_rois_bv shape:, ", all_rois_bv.shape
-        # print rois_bv
         print "rois_3d shape:, ", rois_3d.shape
         print "rois_cnr shape:, ", rois_cnr.shape
 
@@ -242,8 +240,6 @@ def _sample_rois_3d(all_rois_bv, all_rois_3d, gt_boxes_bv, gt_boxes_corners, fg_
         print "overlaps: ", overlaps.shape
         print "gt assignment: ",  gt_assignment.shape
         print "max_overlaps: ", max_overlaps.shape
-        # print "all_rois_bv", all_rois_bv[:10, 1:5]
-        # print gt_boxes_bv[gt_assignment, 4]
         print "labels: ", labels.shape
 
     # Select foreground RoIs as those with >= FG_THRESH overlap

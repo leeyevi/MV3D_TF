@@ -23,16 +23,13 @@ def prepare_roidb(imdb):
     #  sizes = [PIL.Image.open(imdb.image_path_at(i)).size
              #  for i in xrange(imdb.num_images)]
     # sizes = [np.load(imdb.lidar_path_at(i)).shape for i in xrange(imdb.num_images)]
-    # sizes = [703, 801]
-    # sizes = [401, 401]
+
     roidb = imdb.roidb
 
     # TODO: choose i from imageset
     for i in xrange(len(imdb.image_index)):
-        # print('Processing : ', i)
-        # print roidb[0]
+
         if roidb[i]['boxes_corners'] == []:
-            # print roidb[7000]
             print 'boxes_corners not correct', imdb.image_path_at(i)
             continue
         roidb[i]['image_path'] = imdb.image_path_at(i)
@@ -40,28 +37,24 @@ def prepare_roidb(imdb):
         # roidb[i]['width'] = sizes[1]#sizes[i][1]
         # roidb[i]['height'] = sizes[0]#sizes[i][0]
         roidb[i]['calib'] = imdb.calib_at(i)
-        # print(imdb.image_path_at[i])
+
         # need gt_overlaps as a dense array for argmax
         gt_overlaps = roidb[i]['gt_overlaps'].toarray()
         # max overlap with gt over classes (columns)
         max_overlaps = gt_overlaps.max(axis=1)
         # gt class that had the max overlap
         max_classes = gt_overlaps.argmax(axis=1)
-        # print('gt_overlaps:', gt_overlaps)
-        # print('max_overlaps:', max_overlaps)
-        # print('max_classes:', max_classes)
+
         roidb[i]['max_classes'] = max_classes
         roidb[i]['max_overlaps'] = max_overlaps
         # sanity checks
         # max overlap of 0 => class should be zero (background)
         zero_inds = np.where(max_overlaps == 0)[0]
         assert all(max_classes[zero_inds] == 0)
-        # print('zero_inds: ', zero_inds)
+
         # max overlap > 0 => class should not be zero (must be a fg class)
         nonzero_inds = np.where(max_overlaps > 0)[0]
-        # print(i)
-        # print(nonzero_inds)
-        # print('nonzero max_classes: ',max_classes[nonzero_inds])
+
         assert all(max_classes[nonzero_inds] != 0)
 
 def add_bbox_regression_targets(roidb):

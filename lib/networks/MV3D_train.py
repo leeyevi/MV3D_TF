@@ -42,11 +42,11 @@ class MV3D_train(Network):
     def setup(self):
         # Lidar Bird View
         (self.feed('lidar_bv_data')
-             .conv(3, 3, 64, 1, 1, name='conv1_1', trainable=False)
-             .conv(3, 3, 64, 1, 1, name='conv1_2', trainable=False)
+             .conv(3, 3, 64, 1, 1, name='conv1_1')
+             .conv(3, 3, 64, 1, 1, name='conv1_2')
              .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
-             .conv(3, 3, 128, 1, 1, name='conv2_1', trainable=False)
-             .conv(3, 3, 128, 1, 1, name='conv2_2', trainable=False)
+             .conv(3, 3, 128, 1, 1, name='conv2_1')
+             .conv(3, 3, 128, 1, 1, name='conv2_2')
              .max_pool(2, 2, 2, 2, padding='VALID', name='pool2')
              .conv(3, 3, 256, 1, 1, name='conv3_1')
              .conv(3, 3, 256, 1, 1, name='conv3_2')
@@ -60,11 +60,11 @@ class MV3D_train(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
         # RGB
         (self.feed('image_data')
-              .conv(3, 3, 64, 1, 1, name='conv1_1_2', trainable=False)
-              .conv(3, 3, 64, 1, 1, name='conv1_2_2', trainable=False)
+              .conv(3, 3, 64, 1, 1, name='conv1_1_2')
+              .conv(3, 3, 64, 1, 1, name='conv1_2_2')
               .max_pool(2, 2, 2, 2, padding='VALID', name='pool1_2')
-              .conv(3, 3, 128, 1, 1, name='conv2_1_2', trainable=False)
-              .conv(3, 3, 128, 1, 1, name='conv2_2_2', trainable=False)
+              .conv(3, 3, 128, 1, 1, name='conv2_1_2')
+              .conv(3, 3, 128, 1, 1, name='conv2_2_2')
               .max_pool(2, 2, 2, 2, padding='VALID', name='pool2_2')
               .conv(3, 3, 256, 1, 1, name='conv3_1_2')
               .conv(3, 3, 256, 1, 1, name='conv3_2_2')
@@ -107,38 +107,20 @@ class MV3D_train(Network):
 
         (self.feed('rpn_rois', 'gt_boxes_bv', 'gt_boxes_3d', 'gt_boxes_corners', 'calib')
              .proposal_target_layer_3d(n_classes, name='roi_data_3d'))
-            # return
-            # 1. rois: lidar_bv (nx5)
-            # 2. rois: image (nx5)
-            # 3. labels (nx1)
-            # 4. bbox_targets (nx24)
 
         (self.feed('roi_data_3d')
              .proposal_transform(target='img', name='roi_data_img'))
-        # (self.feed('roi_data_3d')
-        #      .proposal_transform(target='bv', name='roi_data_bv'))
+        (self.feed('roi_data_3d')
+             .proposal_transform(target='bv', name='roi_data_bv'))
 
         # (self.feed('conv5_3')
         #      .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
 
-        (self.feed('conv5_3_2')
-             .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
+        # (self.feed('conv5_3_2')
+        #      .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
 
         #========= RCNN ============
-        # (self.feed('conv5_3', 'roi_data_1')
 
-        # lidar bv
-        #  (self.feed('deconv_4x_1', 'roi_data_bv')
-            #  .roi_pool(7, 7, 1.0/2, name='pool_5')
-            #  .fc(4096, name='fc6')
-            #  .dropout(0.5, name='drop6')
-            #  .fc(4096, name='fc7')
-            #  .dropout(0.5, name='drop7')
-            #  .fc(n_classes, relu=False, name='cls_score')
-            #  .softmax(name='cls_prob'))
-
-        #  (self.feed('drop7')
-            #  .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 
         # lidar_bv
         # (self.feed('deconv_4x_1', 'roi_data_bv')
@@ -149,19 +131,19 @@ class MV3D_train(Network):
              #  .fc(2048, name='fc7_1')
               # .dropout(self.keep_prob, name='drop7'))
 
-        # only use image
-        (self.feed('deconv_2x_2', 'roi_data_img')
-        # (self.feed('conv5_3_2', 'roi_data_img')
-             .roi_pool(7, 7, 1.0/_feat_stride[0]/2, name='pool_5')
-             .fc(4096, name='fc6')
-             .dropout(self.keep_prob, name='drop6_1')
-             .fc(4096, name='fc7')
-             .dropout(self.keep_prob, name='drop7')
-             .fc(n_classes, relu=False, name='cls_score')
-             .softmax(name='cls_prob'))
+        # # only use image
+        # (self.feed('deconv_2x_2', 'roi_data_img')
+        # # (self.feed('conv5_3_2', 'roi_data_img')
+        #      .roi_pool(7, 7, 1.0/_feat_stride[0]/2, name='pool_5')
+        #      .fc(4096, name='fc6')
+        #      .dropout(self.keep_prob, name='drop6_1')
+        #      .fc(4096, name='fc7')
+        #      .dropout(self.keep_prob, name='drop7')
+        #      .fc(n_classes, relu=False, name='cls_score')
+        #      .softmax(name='cls_prob'))
 
-        (self.feed('drop7')
-             .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
+        # (self.feed('drop7')
+        #      .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 
         # fusion
         #  (self.feed('drop7', 'drop7_2')
@@ -172,4 +154,30 @@ class MV3D_train(Network):
         #  (self.feed('drop7', 'drop7_2')
              #  .concat(axis=1, name='concat2')
              #  .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
+
+        (self.feed('conv5_3', 'roi_data_bv')
+          .roi_pool(7, 7, 1.0/8, name='pool_5')
+          .fc(2048, name='fc6_1')
+          .dropout(self.keep_prob, name='drop6')
+          .fc(2048, name='fc7_1')
+          .dropout(self.keep_prob, name='drop7'))
+
+        # image
+        #(self.feed('deconv_2x_2', 'roi_data_img')
+        (self.feed('conv5_3_2', 'roi_data_img')
+             .roi_pool(7, 7, 1.0/8, name='pool_5_2')
+             .fc(2048, name='fc6_2')
+             .dropout(self.keep_prob, name='drop6_2')
+              .fc(2048, name='fc7_2')
+              .dropout(self.keep_prob, name='drop7_2'))
+
+        # fusion
+        (self.feed('drop7', 'drop7_2')
+             .concat(axis=1, name='concat1')
+             .dropout(self.keep_prob, name='drop7')
+             .fc(n_classes, relu=False, name='cls_score')
+             .softmax(name='cls_prob'))
+
+        (self.feed('drop7')
+             .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
 

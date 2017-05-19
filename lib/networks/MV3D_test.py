@@ -87,36 +87,53 @@ class MV3D_test(Network):
 
         (self.feed('rois')
              .proposal_transform(target='img', name='roi_data_img'))
-        # (self.feed('rois')
-        #      .proposal_transform(target='bv', name='roi_data_bv'))
+        (self.feed('rois')
+             .proposal_transform(target='bv', name='roi_data_bv'))
 
 
         #deconv
         # (self.feed('conv5_3')
         #       .deconv(shape=None, c_o=512, stride=4, ksize=3, name='deconv_4x_1'))
 
-        (self.feed('conv5_3_2')
-             .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
+        # (self.feed('conv5_3_2')
+        #      .deconv(shape=None, c_o=512, stride=2, ksize=3, name='deconv_2x_2'))
 
         #========= RoI Proposal ============
         # lidar_bv
-        # (self.feed('deconv_4x_1', 'rois')
-        # # (self.feed('conv5_3', 'rois')
-        #      .roi_pool(7, 7, 1.0/2, name='pool_5')
-        #      .fc(2048, name='fc6_1'))
+        (self.feed('conv5_3', 'roi_data_bv')
+              .roi_pool(7, 7, 1.0/8, name='pool_5')
+              .fc(2048, name='fc6_1')
+              .fc(2048, name='fc7_1'))
 
         # image
-        (self.feed('deconv_2x_2', 'roi_data_img')
-        # (self.feed('conv5_3_2', 'roi_data_img')
-             .roi_pool(7, 7, 1.0/4, name='pool_5')
-             .fc(4096, name='fc6'))
+        #(self.feed('deconv_2x_2', 'roi_data_img')
+        (self.feed('conv5_3_2', 'roi_data_img')
+             .roi_pool(7, 7, 1.0/8, name='pool_5_2')
+             .fc(2048, name='fc6_2')
+              .fc(2048, name='fc7_2'))
 
         # fusion
-        (self.feed('fc6')
-             # .concat(axis=1, name='concat1')
-             .fc(4096, relu=False, name='fc7')
-             .fc(n_classes, name='cls_score')
+        (self.feed('fc7_1', 'fc7_2')
+             .concat(axis=1, name='concat1')
+             .fc(n_classes, relu=False, name='cls_score')
              .softmax(name='cls_prob'))
 
-        (self.feed('fc7')
+        (self.feed('fc7_1', 'fc7_2')
+             .concat(axis=1, name='concat2')
              .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)
+
+        # # image
+        # (self.feed('deconv_2x_2', 'roi_data_img')
+        # # (self.feed('conv5_3_2', 'roi_data_img')
+        #      .roi_pool(7, 7, 1.0/4, name='pool_5')
+        #      .fc(4096, name='fc6'))
+
+        # # fusion
+        # (self.feed('fc6')
+        #      # .concat(axis=1, name='concat1')
+        #      .fc(4096, relu=False, name='fc7')
+        #      .fc(n_classes, name='cls_score')
+        #      .softmax(name='cls_prob'))
+
+        # (self.feed('fc7')
+        #      .fc(n_classes*24, relu=False, name='bbox_pred')) # (x0-x7,y0-y7,z0-z7)

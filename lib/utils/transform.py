@@ -92,8 +92,7 @@ def bv_anchor_to_lidar(anchors):
     """
     ex_lengths = anchors[:, 3] - anchors[:, 1]
     ex_widths = anchors[:, 2] - anchors[:, 0]
-#     ex_ctr_x = anchors[:, 0] + 0.5 * ex_widths
-#     ex_ctr_y = anchors[:, 1] + 0.5 * ex_lengths
+
     ex_ctr_x = (anchors[:,0] + anchors[:,2]) / 2.
     ex_ctr_y = (anchors[:,1] + anchors[:,3]) / 2.
 
@@ -103,11 +102,6 @@ def bv_anchor_to_lidar(anchors):
     ex_ctr_y = ex_ctr_y.reshape((anchors.shape[0], 1))
 
     ex_ctr_x, ex_ctr_y = _bv_to_lidar_coords(ex_ctr_x, ex_ctr_y)
-
-#     print ex_ctr_x, ex_ctr_y
-    # TODO : figure out why
-    # ex_ctr_x -= 10
-    # ex_ctr_y += 10
 
     ex_heights = np.ones((anchors.shape[0], 1), dtype=np.float32) * CAR_HEIGHT
     ex_ctr_z = np.ones((anchors.shape[0], 1), dtype=np.float32) * -(LIDAR_HEIGHT-CAR_HEIGHT/2.) #
@@ -121,7 +115,6 @@ def lidar_3d_to_bv(rois_3d):
     cast lidar 3d points(x, y, z, l, w, h) to bird view (x1, y1, x2, y2)
     """
 
-    # print len(rois_3d.shape)
     if rois_3d.shape[0] == 6:
         rois = np.zeros(4)
 
@@ -291,7 +284,7 @@ def lidar_3d_to_corners(pts_3D):
     convert pts_3D_lidar (x, y, z, l, w, h) to
     8 corners (x0, ... x7, y0, ...y7, z0, ... z7)
     """
-    # print "pts_3D shape: ", pts_3D.shape
+
     l = pts_3D[:, 3]
     w = pts_3D[:, 4]
     h = pts_3D[:, 5]
@@ -305,8 +298,6 @@ def lidar_3d_to_corners(pts_3D):
     z_corners = np.hstack((h/2.,h/2.,h/2.,h/2.,-h/2.,-h/2.,-h/2.,-h/2.))
 
     corners = np.hstack((x_corners, y_corners, z_corners))
-    # print "x_corners shape: ", x_corners.shape
-    # print "corners shape: ", corners.shape
 
     corners[:,0:8] = corners[:,0:8] + pts_3D[:,0].reshape((-1, 1)).repeat(8, axis=1)
     corners[:,8:16] = corners[:,8:16] + pts_3D[:,1].reshape((-1, 1)).repeat(8, axis=1)
@@ -331,13 +322,12 @@ def projectToImage(pts_3D, P):
     mat = np.vstack((pts_3D, np.ones((pts_3D.shape[1]))))
 
     pts_2D = np.dot(P, mat)
-    # print(pts_2D)
 
     # scale projected points
     pts_2D[0, :] = pts_2D[0, :] / pts_2D[2, :]
     pts_2D[1, :] = pts_2D[1, :] / pts_2D[2, :]
     pts_2D = np.delete(pts_2D, 2, 0)
-    # pts_2D[2,:] = np.zeros(())
+
     return pts_2D
 
 def _corners_to_bv(corners):

@@ -61,18 +61,13 @@ def bbox_transform_3d(ex_rois_3d, gt_rois_3d):
 def bbox_transform_cnr(ex_rois_3d, gt_rois_3d):
 
     gt_xyz0 = gt_rois_3d[:, 0::8]
-    gt_xyz6 = gt_rois_3d[:, 5::8]
+    gt_xyz6 = gt_rois_3d[:, 6::8]
 
-    mean_xyz0 = gt_xyz0.mean(0)
-    mean_xyz6 = gt_xyz6.mean(0)
 
-    assert(mean_xyz0.shape[0] == 3)
-    assert(mean_xyz6.shape[0] == 3)
     # box diagonal distance
-    diag = np.linalg.norm(mean_xyz0 - mean_xyz6)
-    assert diag != 0, "diagonal distance could not be zero"
+    diag = np.linalg.norm(gt_xyz0 - gt_xyz6, axis=1)
 
-    targets = (gt_rois_3d[:,:] - ex_rois_3d[:,:]) / diag
+    targets = np.divide(gt_rois_3d[:,:] - ex_rois_3d[:,:], diag.reshape((-1, 1)))
 
     return targets
 
@@ -166,15 +161,13 @@ def bbox_transform_inv_cnr(boxes, deltas):
     boxes = boxes.astype(deltas.dtype, copy=False)
 
     gt_xyz0 = boxes[:, 0::8]
-    gt_xyz6 = boxes[:, 5::8]
-
-    mean_xyz0 = gt_xyz0.mean(0)
-    mean_xyz6 = gt_xyz6.mean(0)
+    gt_xyz6 = boxes[:, 6::8]
 
     # box diagonal distance
-    diag = np.linalg.norm(mean_xyz0[:3] - mean_xyz6[:3])
+    diag = np.linalg.norm(gt_xyz0 - gt_xyz6, axis=1)
 
-    deltas = deltas * diag
+    deltas = np.multiply(deltas, diag.reshape((-1, 1)))
+
     pred_boxes = np.zeros(deltas.shape, dtype=deltas.dtype)
 
     for i in range(deltas.shape[1]/24):

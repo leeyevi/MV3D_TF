@@ -22,11 +22,6 @@ transformations to a set of regular boxes (called "anchors").
 """
 
 
-# input
-#  rpn_bbox_pred (nx6)
-# return
-# 1. rois: lidar_bv
-# 4. rois_3d
 def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, _feat_stride = [8,], anchor_scales=[1.0, 1.0]):
     # Algorithm:
     #
@@ -53,7 +48,7 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
     assert rpn_cls_prob_reshape.shape[0] == 1, \
         'Only single item batches are supported'
     # cfg_key = str(self.phase) # either 'TRAIN' or 'TEST'
-    # cfg_key = 'TRAIN'
+
     pre_nms_topN  = cfg[cfg_key].RPN_PRE_NMS_TOP_N
     post_nms_topN = cfg[cfg_key].RPN_POST_NMS_TOP_N
     nms_thresh    = cfg[cfg_key].RPN_NMS_THRESH
@@ -186,9 +181,7 @@ def proposal_layer_3d(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,calib,cfg_key, 
         print "proposals after nms"
         print "proposals_bv shape: ", proposals_bv.shape
         print "proposals_3d shape: ", proposals_3d.shape
-        # print "proposals_bv", proposals_bv[:10]
-        # print "proposals_img", proposals_img[:10]
-        # print "scores: ", scores[:10]
+
     # Output rois blob
     # Our RPN implementation only supports a single input image, so all
     # batch inds are 0
