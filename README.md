@@ -82,17 +82,62 @@ For details about MV3D please refer to the paper [Multi-View 3D Object Detection
 
 Key idea: Use Lidar bird view to generate anchor boxes, then project those boxes on image to do classification.
 
-![structure](examples/structure.png)
+![structure](examples/mv3d_4.png)
 
 ### Examples
 
-Without bounding box regression: 
+Image and corresponding Lidar map 
 
-![figure_20](examples/figure_20.png)
+**Note:**
 
-![figure_20](examples/figure_21.png)
+In image:
 
-![figure_20](examples/figure_25.png)
++ Boxes  without regression
+
+In Lidar:
+
++ white box: without regression (correspond with image)
++ purple box: with regression
+
+1.
+
+![figure_20](examples/figure_27.png)
+
+![figure_20](examples/jlidar27.png)
+
+2.
+
+![figure_20](examples/figure_30.png)
+
+![figure_20](examples/lidar30.png)
+
+3. ​
+
+![figure_20](examples/figure_13.png)
+
+![figure_20](examples/lidar13.png)
+
+4.
+
+![figure_20](examples/figure_29.png)
+
+![figure_20](examples/lidar29.png)
+
+### Existing Errors
+
+Mostly due to regression error
+
+![figure_20](examples/figure_10.png)
+
+(error in box 5,6,9)
+
+![figure_20](examples/lidar10.png)
+
+![figure_20](examples/figure_33.png)
+
+(error in 8, 9, 10)
+
+![figure_20](examples/lidar33.png)
 
 ### References
 
