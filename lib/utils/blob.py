@@ -9,6 +9,7 @@
 
 import numpy as np
 import cv2
+from read_lidar import point_cloud_2_top
 
 def im_list_to_blob(ims):
     """Convert a list of images into a network input.
@@ -41,3 +42,14 @@ def prep_im_for_blob(im, pixel_means, target_size, max_size):
                     interpolation=cv2.INTER_LINEAR)
 
     return im, im_scale
+
+def make_bird_view(velo_file):
+
+    print("Processing: ", velo_file)
+    scan = np.fromfile(velo_file, dtype=np.float32)
+    scan = scan.reshape((-1, 4))
+    bird_view = point_cloud_2_top(scan, res=0.1, zres=0.3,
+                                   side_range=(-30., 30.),  # left-most to right-most
+                                   fwd_range=(0, 60.),  # back-most to forward-most
+                                   height_range=(-2., 0.4))
+    return scan, bird_view

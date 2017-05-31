@@ -21,8 +21,8 @@ import time
 
 # DEBUG = True
 DEBUG = False
-vis = True
-# vis = False
+# vis = True
+vis = False
 
 class SolverWrapper(object):
     """A simple wrapper around Caffe's solver.
@@ -71,7 +71,7 @@ class SolverWrapper(object):
                           |x| - 0.5 / sigma^2,    otherwise
         """
         sigma2 = sigma * sigma
-
+        
         diffs = tf.subtract(bbox_pred, bbox_targets)
 
         smooth_l1_sign = tf.cast(tf.less(tf.abs(diffs), 1.0 / sigma2), tf.float32)

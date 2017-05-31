@@ -115,7 +115,8 @@ def lidar_3d_to_bv(rois_3d):
     cast lidar 3d points(x, y, z, l, w, h) to bird view (x1, y1, x2, y2)
     """
 
-    if rois_3d.shape[0] == 6:
+    if len(rois_3d.shape) == 1:
+    # if 0:
         rois = np.zeros(4)
 
         rois[0] = rois_3d[0] + rois_3d[3] * 0.5
@@ -172,10 +173,17 @@ def lidar_cnr_to_3d(corners, lwh):
     """
     lidar_corners to Boxex3D
     """
-    boxes_3d = np.zeros(6)
-    corners = corners.reshape((3, 8))
-    boxes_3d[:3] = corners.mean(1)
-    boxes_3d[3:] = lwh
+    shape = corners.shape
+    if shape[0] == 24:
+        boxes_3d = np.zeros(6)
+        corners = corners.reshape((3, 8))
+        boxes_3d[:3] = corners.mean(1)
+        boxes_3d[3:] = lwh
+    else:
+        boxes_3d = np.zeros((shape[0],6))
+        corners = corners.reshape((-1, 3, 8))
+        boxes_3d[:,:3] = corners.mean(2)
+        boxes_3d[:,3:] = lwh
     return boxes_3d
 
 def cam_to_lidar_3d(pts_3D, Tr):
@@ -293,9 +301,10 @@ def lidar_3d_to_corners(pts_3D):
     w = w.reshape(-1, 1)
     h = h.reshape(-1, 1)
 
+    # clockwise, zero at bottom left
     x_corners = np.hstack((l/2., l/2., -l/2., -l/2., l/2., l/2., -l/2., -l/2.))
     y_corners = np.hstack((w/2., -w/2., -w/2., w/2., w/2., -w/2., -w/2., w/2.))
-    z_corners = np.hstack((h/2.,h/2.,h/2.,h/2.,-h/2.,-h/2.,-h/2.,-h/2.))
+    z_corners = np.hstack((-h/2.,-h/2.,-h/2.,-h/2.,h/2.,h/2.,h/2.,h/2.))
 
     corners = np.hstack((x_corners, y_corners, z_corners))
 
@@ -528,7 +537,7 @@ def corners_to_img(corners, Tr, R0, P2):
     # print corners.shape
     corners = np.vstack((corners, np.zeros(8)))
 
-    # print corners.shape
+    # print(corners.shape)
     img_cor = reduce(np.dot, [P2, R0, Tr, corners])
 
     return img_cor
