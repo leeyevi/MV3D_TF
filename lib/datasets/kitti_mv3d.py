@@ -33,7 +33,7 @@ class kitti_mv3d(datasets.imdb):
         self._subset = 'car'
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
-
+        self.bounding_box = [0, 0, 601, 601]  # define the image size 
         self._roidb_handler = self.gt_roidb
 
         self.config = {'top_k': 100000}
@@ -270,7 +270,22 @@ class kitti_mv3d(datasets.imdb):
             # boxes3D_corners[ix, :] = lidar_to_corners_single(boxes3D_lidar[ix, :])
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
-
+            # remove the gt_bv which out of the filed(601x601)
+            if not self.check_box_bounding(boxes_bv[ix, :]):
+                rys[ix] = 0
+                lwh[ix, :] = [0, 0, 0]
+                alphas[ix] = 0
+                translation[ix, :] = [0, 0, 0]
+                boxes[ix, :] = [0, 0, 0, 0]
+                boxes3D[ix, :] = [0, 0, 0, 0, 0, 0]
+                boxes3D_cam_cnr[ix, :] = np.zeros((24), dtype=np.float32)
+                boxes3D_corners[ix, :] = np.zeros((24), dtype=np.float32)
+                boxes3D_lidar[ix, :] = [0, 0, 0, 0, 0, 0]
+                boxes_bv[ix, :] = [0, 0, 0, 0]
+                gt_classes[ix] = 0
+                overlaps[ix, cls] = 0
+                ix = ix - 1
+                
         rys.resize(ix+1)
         lwh.resize(ix+1, 3)
         translation.resize(ix+1, 3)
@@ -304,6 +319,12 @@ class kitti_mv3d(datasets.imdb):
                 'xyz' : translation,
                 'alphas' :alphas,
                 'flipped' : False}
+    def check_box_bounding(self,bbox):
+        stand = self.bounding_box
+        if (bbox[0] > stand[0]) &(bbox[1] > stand[1])&(bbox[2] < stand[2])&(bbox[3] < stand[3]):
+            return True
+        else:
+            return False
 
     def _get_obj_level(self, obj):
         height = float(obj[7]) - float(obj[5]) + 1
