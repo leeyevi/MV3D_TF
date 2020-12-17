@@ -5,6 +5,8 @@
 # Written by Ross Girshick
 # --------------------------------------------------------
 
+from __future__ import print_function
+
 import os
 from os.path import join as pjoin
 import numpy as np
@@ -81,7 +83,7 @@ def customize_compiler_for_nvcc(self):
     # object but distutils doesn't have the ability to change compilers
     # based on source extension: we add it.
     def _compile(obj, src, ext, cc_args, extra_postargs, pp_opts):
-        print extra_postargs
+        print(extra_postargs)
         if os.path.splitext(src)[1] == '.cu':
             # use the cuda for .cu files
             self.set_executable('compiler_so', CUDA['nvcc'])
